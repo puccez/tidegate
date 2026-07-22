@@ -1,0 +1,25 @@
+{
+  "name": "@tidegate/runtime",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "license": "FSL-1.1-ALv2",
+  "exports": {
+    ".": "./src/index.ts",
+    "./demo-fixtures": "./src/demo-fixtures.ts",
+    "./testing": "./src/interaction-test-harness.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "check-types": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@tidegate/contracts": "workspace:*",
+    "typescript": "^6.0.3",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@tidegate/sdk": "workspace:*"
+  }
+}

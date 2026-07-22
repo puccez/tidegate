@@ -54,7 +54,50 @@ export type PublishTypecheckCheckerOptions = {
   command?: string;
   baseArgs?: string[];
   timeoutMs?: number;
+  /**
+   * Skips ONLY the external compiler spawn. Every other layer of the gate
+   * (manifest validation, source policy lint, capability codegen, source
+   * transform) still runs, and the sandbox remains the behavioral boundary
+   * at execution time. Meant for hosts where no TypeScript toolchain binary
+   * exists on PATH (e.g. serverless runtimes); never the default.
+   */
+  skipCompilerCheck?: boolean;
 };
+
+export const PUBLISH_TYPECHECK_COMMAND_ENV =
+  "TIDEGATE_PUBLISH_TYPECHECK_COMMAND";
+export const PUBLISH_TYPECHECK_ARGS_ENV = "TIDEGATE_PUBLISH_TYPECHECK_ARGS";
+export const PUBLISH_TYPECHECK_SKIP_COMMAND = "skip";
+
+/**
+ * Deploy-time checker configuration. Unset → `undefined` (callers fall back
+ * to the default `bunx tsc` spawn, byte-identical to previous behavior).
+ * `TIDEGATE_PUBLISH_TYPECHECK_COMMAND=skip` disables the compiler spawn;
+ * any other value replaces the spawned command, with optional
+ * whitespace-separated args from `TIDEGATE_PUBLISH_TYPECHECK_ARGS`.
+ */
+export function resolvePublishTypecheckCheckerOptionsFromEnv(
+  env: Record<string, string | undefined> = process.env,
+): PublishTypecheckCheckerOptions | undefined {
+  const command = env[PUBLISH_TYPECHECK_COMMAND_ENV]?.trim();
+
+  if (command === undefined || command === "") {
+    return undefined;
+  }
+
+  if (command === PUBLISH_TYPECHECK_SKIP_COMMAND) {
+    return { skipCompilerCheck: true };
+  }
+
+  const rawArgs = env[PUBLISH_TYPECHECK_ARGS_ENV]?.trim();
+
+  return {
+    command,
+    ...(rawArgs === undefined || rawArgs === ""
+      ? {}
+      : { baseArgs: rawArgs.split(/\s+/) }),
+  };
+}
 
 export type ResolvePublishTypecheckActionCatalogManifestInput = {
   actionCatalogMetadata: PublishTypecheckActionCatalogMetadata;
@@ -276,6 +319,18 @@ export async function runPublishTypecheckGate({
     };
   }
 
+  const resolvedChecker =
+    checker ?? resolvePublishTypecheckCheckerOptionsFromEnv();
+
+  if (resolvedChecker?.skipCompilerCheck === true) {
+    return {
+      ok: true,
+      manifest: manifestResult.manifest,
+      generated,
+      diagnostics: [],
+    };
+  }
+
   const workspace = await mkdtemp(join(tmpdir(), "tidegate-publish-check-"));
 
   try {
@@ -292,7 +347,7 @@ export async function runPublishTypecheckGate({
     );
 
     const checkerResult = await runTypeScriptChecker({
-      checker,
+      checker: resolvedChecker,
       entrypoint: SUBMITTED_SOURCE_FILENAME,
       workspace,
     });

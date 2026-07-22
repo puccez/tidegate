@@ -1,7 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import type { JsonSchema } from "@tidegate/contracts";
 import { demoActions } from "./demo-fixtures";
-import { runPublishTypecheckGate } from "./publish-typecheck";
+import {
+  resolvePublishTypecheckCheckerOptionsFromEnv,
+  runPublishTypecheckGate,
+} from "./publish-typecheck";
 
 const inputSchema = {
   type: "object",
@@ -444,5 +447,69 @@ export default async function run(input, { actions: { call } }: any) {
         }),
       ]),
     );
+  });
+});
+
+describe("resolvePublishTypecheckCheckerOptionsFromEnv", () => {
+  test("unset env yields undefined (default bunx tsc behavior)", () => {
+    expect(resolvePublishTypecheckCheckerOptionsFromEnv({})).toBeUndefined();
+    expect(
+      resolvePublishTypecheckCheckerOptionsFromEnv({
+        TIDEGATE_PUBLISH_TYPECHECK_COMMAND: "  ",
+      }),
+    ).toBeUndefined();
+  });
+
+  test("skip disables only the compiler spawn", () => {
+    expect(
+      resolvePublishTypecheckCheckerOptionsFromEnv({
+        TIDEGATE_PUBLISH_TYPECHECK_COMMAND: "skip",
+      }),
+    ).toEqual({ skipCompilerCheck: true });
+  });
+
+  test("custom command and args replace the spawn", () => {
+    expect(
+      resolvePublishTypecheckCheckerOptionsFromEnv({
+        TIDEGATE_PUBLISH_TYPECHECK_COMMAND: "node",
+        TIDEGATE_PUBLISH_TYPECHECK_ARGS: "tsc.js --noEmit",
+      }),
+    ).toEqual({ command: "node", baseArgs: ["tsc.js", "--noEmit"] });
+  });
+});
+
+describe("runPublishTypecheckGate with skipCompilerCheck", () => {
+  test("passes a valid source without spawning, but still lints policy", async () => {
+    const validSource = `export default async function run(input, ctx) {
+  return { ok: true };
+}`;
+    const result = await runPublishTypecheckGate({
+      actionCatalogMetadata: { id: "cat", version: "1" },
+      actions: [],
+      checker: { skipCompilerCheck: true },
+      inputSchema: { type: "object" },
+      outputSchema: { type: "object" },
+      source: validSource,
+    });
+
+    expect(result.ok).toBe(true);
+
+    // The source policy layer still runs: computed access is rejected
+    // even when the compiler spawn is skipped.
+    const rejected = await runPublishTypecheckGate({
+      actionCatalogMetadata: { id: "cat", version: "1" },
+      actions: [],
+      checker: { skipCompilerCheck: true },
+      inputSchema: { type: "object" },
+      outputSchema: { type: "object" },
+      source: `export default async function run(input, ctx) {
+  return ctx.capabilities["booking"].cancel(input);
+}`,
+    });
+
+    expect(rejected.ok).toBe(false);
+    if (!rejected.ok) {
+      expect(rejected.diagnostics.at(0)?.code).toBe("source_policy_disallowed");
+    }
   });
 });

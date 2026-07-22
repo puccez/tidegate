@@ -1,5 +1,5 @@
-export const TIDEGATE_INTERACTION_API_BASE_PATH = "/api/tidegate/v1";
-export const TIDEGATE_LEGACY_INTERACTION_API_BASE_PATH = "/api/tidegate";
+export const TIDEGATE_INTERACTION_API_BASE_PATH = "/api/v1";
+export const TIDEGATE_LEGACY_INTERACTION_API_BASE_PATH = "/api";
 
 export const interactionPublicRoutePaths = {
   getInteraction: ({ interactionId }: { interactionId: string }) =>

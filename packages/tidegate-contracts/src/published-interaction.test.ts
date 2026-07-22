@@ -477,7 +477,7 @@ describe("published interaction contracts", () => {
     expect(toPublicInteractionDiscoveryItem(record, artifact).invoke).toEqual({
       method: "POST",
       path:
-        "/api/tidegate/v1/interactions/ix.booking.cancel%20appointment/invoke",
+        "/api/v1/interactions/ix.booking.cancel%20appointment/invoke",
     });
   });
 

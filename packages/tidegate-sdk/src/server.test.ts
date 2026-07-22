@@ -80,7 +80,7 @@ describe("createTidegateServerClient", () => {
 
     const fetchImpl: TidegateFetch = async (input, init) => {
       expect(String(input)).toBe(
-        "http://localhost:3000/api/tidegate/v1/interactions/ix.booking.cancelAppointment/invoke",
+        "http://localhost:3000/api/v1/interactions/ix.booking.cancelAppointment/invoke",
       );
       expect(new Headers(init?.headers).get("authorization")).toBe(
         "Bearer evk_test_override",
@@ -98,7 +98,7 @@ describe("createTidegateServerClient", () => {
 
     const tidegate = createTidegateServerClient({
       apiKey: "evk_test_override",
-      baseUrl: "http://localhost:3000/api/tidegate/v1/",
+      baseUrl: "http://localhost:3000/api/v1/",
       fetchImpl,
     });
 
@@ -116,7 +116,7 @@ describe("createTidegateServerClient", () => {
   test("builds invoke URLs through the canonical encoded route contract", async () => {
     const fetchImpl: TidegateFetch = async (input) => {
       expect(String(input)).toBe(
-        "http://localhost:3000/api/tidegate/v1/interactions/ix.booking.cancel%20appointment/invoke",
+        "http://localhost:3000/api/v1/interactions/ix.booking.cancel%20appointment/invoke",
       );
 
       return Response.json({
@@ -130,7 +130,7 @@ describe("createTidegateServerClient", () => {
 
     const tidegate = createTidegateServerClient({
       apiKey: "evk_test_override",
-      baseUrl: "http://localhost:3000/api/tidegate/v1/",
+      baseUrl: "http://localhost:3000/api/v1/",
       fetchImpl,
     });
 
@@ -145,7 +145,7 @@ describe("createTidegateServerClient", () => {
   test("returns typed Tidegate rejections instead of throwing for valid error responses", async () => {
     const tidegate = createTidegateServerClient({
       apiKey: "evk_test",
-      baseUrl: "http://localhost:3000/api/tidegate/v1",
+      baseUrl: "http://localhost:3000/api/v1",
       fetchImpl: async () =>
         Response.json(
           {

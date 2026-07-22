@@ -137,6 +137,6 @@ For local development, staging, or self-hosting, pass explicit overrides:
 ```ts
 const tidegate = createTidegateServerClient({
   apiKey: process.env.CUSTOM_TIDEGATE_API_KEY,
-  baseUrl: "http://localhost:3000/api/tidegate/v1",
+  baseUrl: "http://localhost:3000/api/v1",
 });
 ```

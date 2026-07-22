@@ -16,9 +16,9 @@ import {
 import { createTidegateRuntime } from "./runtime";
 import type { TidegateActionBridgeFetch } from "./action-bridge";
 
-const ACTION_ENDPOINT = "https://customer.example.com/api/tidegate/actions";
+const ACTION_ENDPOINT = "https://customer.example.com/api/actions";
 const ACTION_CATALOG_URL =
-  "https://customer.example.com/api/tidegate/action-catalog";
+  "https://customer.example.com/api/action-catalog";
 const ACTION_BRIDGE_SECRET = "server_only_secret";
 
 const manifest: TidegateActionCatalogManifestV1 = {

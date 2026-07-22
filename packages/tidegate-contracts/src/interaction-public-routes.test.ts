@@ -13,7 +13,7 @@ import {
 
 describe("interaction public routes", () => {
   test("builds canonical discovery and invoke paths", () => {
-    expect(TIDEGATE_INTERACTION_API_BASE_PATH).toBe("/api/tidegate/v1");
+    expect(TIDEGATE_INTERACTION_API_BASE_PATH).toBe("/api/v1");
     expect(interactionPublicRoutePaths.listInteractions()).toBe("interactions");
     expect(
       interactionPublicRoutePaths.getInteraction({
@@ -32,7 +32,7 @@ describe("interaction public routes", () => {
       absoluteInteractionPublicApiPath(
         interactionPublicRoutePaths.listInteractions(),
       ),
-    ).toBe("/api/tidegate/v1/interactions");
+    ).toBe("/api/v1/interactions");
     expect(
       publicInteractionInvokeRoute({
         interactionId: "ix.booking.cancel appointment",
@@ -40,12 +40,12 @@ describe("interaction public routes", () => {
     ).toEqual({
       method: "POST",
       path:
-        "/api/tidegate/v1/interactions/ix.booking.cancel%20appointment/invoke",
+        "/api/v1/interactions/ix.booking.cancel%20appointment/invoke",
     });
   });
 
   test("builds legacy invoke and confirmation paths without changing encoding", () => {
-    expect(TIDEGATE_LEGACY_INTERACTION_API_BASE_PATH).toBe("/api/tidegate");
+    expect(TIDEGATE_LEGACY_INTERACTION_API_BASE_PATH).toBe("/api");
     expect(
       legacyInteractionPublicRoutePaths.invokeInteraction({
         interactionId: "ix.booking.cancel appointment",
@@ -63,7 +63,7 @@ describe("interaction public routes", () => {
         }),
       ),
     ).toBe(
-      "/api/tidegate/interactions/ix.booking.cancel appointment/invoke",
+      "/api/interactions/ix.booking.cancel appointment/invoke",
     );
     expect(
       legacyPublicInteractionInvokeRoute({
@@ -71,14 +71,14 @@ describe("interaction public routes", () => {
       }),
     ).toEqual({
       method: "POST",
-      path: "/api/tidegate/interactions/ix.booking.cancel appointment/invoke",
+      path: "/api/interactions/ix.booking.cancel appointment/invoke",
     });
     expect(
       legacyPublicInteractionConfirmPath({
         interactionId: "ix.booking.cancel appointment",
       }),
     ).toBe(
-      "/api/tidegate/interactions/ix.booking.cancel appointment/confirm",
+      "/api/interactions/ix.booking.cancel appointment/confirm",
     );
   });
 });

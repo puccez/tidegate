@@ -75,7 +75,7 @@ describe("InvokeInteractionResponseSchema", () => {
           inputSummary: [{ path: "/appointmentId", value: "apt_123" }],
           expiresAt: "2026-06-21T00:05:00.000Z",
           confirmRoute:
-            "/api/tidegate/interactions/ix.booking.cancelAppointment/confirm",
+            "/api/interactions/ix.booking.cancelAppointment/confirm",
         },
       },
       {
@@ -136,7 +136,7 @@ describe("InvokeInteractionResponseSchema", () => {
           inputSummary: [{ path: "/appointmentId", value: "apt_123" }],
           expiresAt: "2026-06-21T00:05:00.000Z",
           confirmRoute:
-            "/api/tidegate/interactions/ix.booking.cancelAppointment/confirm",
+            "/api/interactions/ix.booking.cancelAppointment/confirm",
         },
       }).success,
     ).toBe(false);

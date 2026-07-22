@@ -30,7 +30,7 @@ const organizationApiKey: WorkOsApiKey = {
 
 function request({
   authorization,
-  url = "https://api.example.com/api/tidegate/v1/interactions/ix.booking.cancelAppointment/invoke",
+  url = "https://api.example.com/api/v1/interactions/ix.booking.cancelAppointment/invoke",
 }: {
   authorization?: string;
   url?: string;
@@ -125,7 +125,7 @@ describe("verifyPublicApiRequest", () => {
   test("accepts missing bearer only for local development loopback requests", async () => {
     const verified = await verifyPublicApiRequest({
       request: request({
-        url: "http://localhost/api/tidegate/interactions/ix.booking.cancelAppointment/invoke",
+        url: "http://localhost/api/interactions/ix.booking.cancelAppointment/invoke",
       }),
       requiredScopes: ["tidegate:interaction:invoke"],
       allowLocalDev: true,
@@ -148,7 +148,7 @@ describe("verifyPublicApiRequest", () => {
     const verified = await verifyPublicApiRequest({
       request: request({
         authorization: "Bearer local-dev",
-        url: "http://127.0.0.1:3000/api/tidegate/v1/interactions",
+        url: "http://127.0.0.1:3000/api/v1/interactions",
       }),
       requiredScopes: ["tidegate:interaction:invoke"],
       apiKeyValidator: async () => {
@@ -170,7 +170,7 @@ describe("verifyPublicApiRequest", () => {
       verifyPublicApiRequest({
         request: request({
           authorization: "Bearer local-dev",
-          url: "http://127.0.0.1:3000/api/tidegate/v1/interactions",
+          url: "http://127.0.0.1:3000/api/v1/interactions",
         }),
         requiredScopes: ["tidegate:interaction:invoke"],
         allowLocalDev: false,
@@ -189,7 +189,7 @@ describe("verifyPublicApiRequest", () => {
       const verified = await verifyPublicApiRequest({
         request: request({
           authorization: "Bearer local-dev",
-          url: "http://127.0.0.1:3000/api/tidegate/v1/interaction-drafts",
+          url: "http://127.0.0.1:3000/api/v1/interaction-drafts",
         }),
         requiredScopes: ["tidegate:interaction:publish"],
         apiKeyValidator: async () => {
@@ -215,7 +215,7 @@ describe("verifyPublicApiRequest", () => {
       verifyPublicApiRequest({
         request: request({
           authorization: "Bearer local-dev",
-          url: "http://0.0.0.0:3000/api/tidegate/v1/interactions",
+          url: "http://0.0.0.0:3000/api/v1/interactions",
         }),
         requiredScopes: ["tidegate:interaction:discover"],
         apiKeyValidator: async () => null,
@@ -233,7 +233,7 @@ describe("verifyPublicApiRequest", () => {
       const verified = await verifyPublicApiRequest({
         request: request({
           authorization: "Bearer local-dev",
-          url: "http://100.90.84.33:3000/api/tidegate/v1/interactions",
+          url: "http://100.90.84.33:3000/api/v1/interactions",
         }),
         requiredScopes: ["tidegate:interaction:discover"],
         apiKeyValidator: async () => {
@@ -297,7 +297,7 @@ describe("verifyPublicApiRequest", () => {
       verifyPublicApiRequest({
         request: request({
           authorization: "Bearer local-dev",
-          url: "https://tidegate.example.com/api/tidegate/v1/interactions",
+          url: "https://tidegate.example.com/api/v1/interactions",
         }),
         requiredScopes: ["tidegate:interaction:discover"],
         apiKeyValidator: async () => null,
@@ -343,7 +343,7 @@ describe("verifyPublicApiRequest", () => {
       await expect(
         verifyPublicApiRequest({
           request: request({
-            url: "http://100.90.84.33:3000/api/tidegate/v1/interactions",
+            url: "http://100.90.84.33:3000/api/v1/interactions",
           }),
           requiredScopes: ["tidegate:interaction:discover"],
           apiKeyValidator: async () => {

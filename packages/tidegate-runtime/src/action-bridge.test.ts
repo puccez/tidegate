@@ -111,10 +111,10 @@ describe("createTidegateActionBridgeAction", () => {
       tenantScope: {
         tenantId: "demo-salon",
       },
-      endpoint: "https://customer.example.com/api/tidegate/actions",
+      endpoint: "https://customer.example.com/api/actions",
       actionBridgeSecret: "secret_123",
       fetchImpl: async (input, init) => {
-        expect(String(input)).toBe("https://customer.example.com/api/tidegate/actions");
+        expect(String(input)).toBe("https://customer.example.com/api/actions");
         expect(init?.method).toBe("POST");
 
         const headers = new Headers(init?.headers);
@@ -178,7 +178,7 @@ describe("createTidegateActionBridgeAction", () => {
       tenantScope: {
         tenantId: "demo-salon",
       },
-      endpoint: "https://customer.example.com/api/tidegate/actions",
+      endpoint: "https://customer.example.com/api/actions",
       actionBridgeSecret: "secret_123",
       fetchImpl: async (input, init) => POST(requestFromFetch(input, init)),
     });
@@ -235,7 +235,7 @@ describe("createTidegateActionBridgeAction", () => {
       tenantScope: {
         tenantId: "demo-salon",
       },
-      endpoint: "https://customer.example.com/api/tidegate/actions",
+      endpoint: "https://customer.example.com/api/actions",
       actionBridgeSecret: "wrong_secret",
       fetchImpl: async (input, init) => POST(requestFromFetch(input, init)),
     });

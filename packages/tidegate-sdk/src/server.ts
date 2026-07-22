@@ -42,7 +42,8 @@ export {
   type TidegateVerifiedActionRequest,
 } from "./action-bridge.ts";
 
-export const DEFAULT_TIDEGATE_API_BASE_URL = "https://api.tidegate.ai/v1";
+export const DEFAULT_TIDEGATE_API_BASE_URL =
+  "https://tidegate.vercel.app/api/v1";
 
 export type TidegateFetch = (
   input: Parameters<typeof fetch>[0],

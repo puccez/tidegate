@@ -48,7 +48,7 @@ const actions = defineActionsCatalog({
     tenantScope: {
       tenantId: "demo-salon",
     },
-    endpoint: "https://customer.example.com/api/tidegate/actions",
+    endpoint: "https://customer.example.com/api/actions",
     actionBridgeSecret: process.env.TIDEGATE_ACTION_BRIDGE_SECRET,
     inputSchema: z.object({
       appointmentId: z.string().min(1),

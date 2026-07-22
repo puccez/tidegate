@@ -57,7 +57,7 @@ function createRequest({
   headers?: RequestInit["headers"];
   input?: unknown;
 } = {}) {
-  return new Request("https://customer.example.com/api/tidegate/actions", {
+  return new Request("https://customer.example.com/api/actions", {
     method: "POST",
     headers: {
       "content-type": "application/json",

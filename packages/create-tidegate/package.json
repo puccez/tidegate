@@ -1,0 +1,27 @@
+{
+  "name": "create-tidegate",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "create-tidegate": "./src/bin.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "check-types": "tsc --noEmit",
+    "test": "bun test",
+    "build:pack": "bun run ../../scripts/build-publishable.ts ."
+  },
+  "dependencies": {
+    "@tidegate/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "@tidegate/sdk": "workspace:*",
+    "zod": "4.4.3"
+  },
+  "description": "Scaffold a Tidegate customer backend integration and verify its wiring (init + doctor).",
+  "license": "Apache-2.0"
+}

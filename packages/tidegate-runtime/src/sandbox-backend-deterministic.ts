@@ -198,6 +198,7 @@ export type DeterministicSandboxBackend = SandboxBackend & {
  */
 export function createDeterministicSandboxBackend(): DeterministicSandboxBackend {
   return {
+    name: "deterministic",
     provider: new DeterministicPublishedInteractionSandboxProvider(),
     workspaceFactory: new InMemorySandboxWorkspaceFactory(),
   };

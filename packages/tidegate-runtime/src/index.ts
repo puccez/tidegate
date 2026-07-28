@@ -21,6 +21,11 @@ export * from "./publish-typecheck.ts";
 export * from "./remote-action-catalog.ts";
 export * from "./runtime.ts";
 export * from "./sandbox-backend.ts";
+// The Vercel Sandbox backend deliberately lives OUTSIDE this barrel, on the
+// "@tidegate/runtime/sandbox-vercel" subpath: Eve bundles the agent's
+// authored tools (which import this barrel) into single-file modules, and
+// the backend's dynamic import of @vercel/sandbox would split that bundle
+// and break `eve build`.
 export * from "./sandbox-capabilities.ts";
 export * from "./sandbox-backend-deterministic.ts";
 export * from "./sandbox-executor.ts";

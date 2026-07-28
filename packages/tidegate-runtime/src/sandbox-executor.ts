@@ -88,6 +88,7 @@ export class SandboxedPublishedInteractionExecutor
   private readonly provider: PublishedInteractionSandboxProvider;
   private readonly workspaceFactory: PublishedInteractionSandboxWorkspaceFactory;
   private readonly tracing: SandboxExecutionTracingOptions | undefined;
+  private readonly backendName: string | undefined;
 
   constructor({
     backend,
@@ -111,6 +112,7 @@ export class SandboxedPublishedInteractionExecutor
       backend?.workspaceFactory ??
       workspaceFactory ??
       new LocalPublishedInteractionSandboxWorkspaceFactory();
+    this.backendName = backend?.name;
     this.tracing = tracing;
   }
 
@@ -172,8 +174,31 @@ export class SandboxedPublishedInteractionExecutor
       category: "sandbox",
       name: "sandbox.allocate",
     });
-    const workspace = await this.workspaceFactory.createWorkspace(payload);
+    let workspace: PublishedInteractionSandboxWorkspace;
+    try {
+      workspace = await this.workspaceFactory.createWorkspace(payload);
+    } catch (error) {
+      // A backend that cannot allocate (missing credentials, quota, remote
+      // outage) must fail loudly AND diagnosably: keep the allocation error
+      // message instead of surfacing an anonymous interaction failure.
+      const message =
+        error instanceof Error ? error.message : "Sandbox allocation failed.";
+      await finishSandboxSpan(allocateSpan, "error", {
+        code: "interaction_failed",
+        message,
+      });
+      return failedResult(
+        "interaction_failed",
+        `Sandbox allocation failed: ${message}`,
+      );
+    }
     await finishSandboxSpan(allocateSpan, "ok");
+    markSandboxTrace(trace, "sandbox.backend", {
+      backend: this.backendName ?? "custom",
+      ...(workspace.sandboxId === undefined
+        ? {}
+        : { sandboxId: workspace.sandboxId }),
+    });
 
     try {
       const prepareSpan = startSandboxSpan(trace, {
@@ -218,8 +243,29 @@ export class SandboxedPublishedInteractionExecutor
           : "Published interaction sandbox execution failed.",
       );
     } finally {
-      await workspace.cleanup();
+      // The cleanup outcome is a tracing dimension, and a failed teardown
+      // must never mask the execution result (the backend's own resource
+      // timeout is the leak backstop).
+      let cleanupOutcome: "ok" | "error" = "ok";
+      try {
+        await workspace.cleanup();
+      } catch {
+        cleanupOutcome = "error";
+      }
+      markSandboxTrace(trace, "sandbox.cleanup", { outcome: cleanupOutcome });
     }
+  }
+}
+
+function markSandboxTrace(
+  trace: ActiveExecutionTrace | undefined,
+  name: string,
+  attributes: Record<string, string>,
+): void {
+  try {
+    trace?.mark(name, attributes);
+  } catch {
+    // Telemetry must never fail the user's execution.
   }
 }
 
@@ -329,6 +375,7 @@ export function createSandboxedPublishedInteractionExecutor(
  */
 export function createLocalProcessSandboxBackend(): SandboxBackend {
   return {
+    name: "local",
     provider: new LocalProcessPublishedInteractionSandboxProvider(),
     workspaceFactory: new LocalPublishedInteractionSandboxWorkspaceFactory(),
   };

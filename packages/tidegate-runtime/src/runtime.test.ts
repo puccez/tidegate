@@ -25,6 +25,7 @@ import {
   defineInteraction,
   type StaticInteraction,
 } from "./interaction-registry";
+import type { ActionCallObservation } from "./execution-authority";
 import { createTidegateRuntime } from "./runtime";
 
 const demoAuth: RuntimeAuthContext = {
@@ -1678,5 +1679,127 @@ describe("createTidegateRuntime — live authority (#25)", () => {
     expect(response.status).toBe("ok");
     // Three action calls → three revocation reads.
     expect(clockReads).toHaveLength(3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Action-call observation — the audit tap at the trusted-caller choke point.
+// Purely observational: outcomes and codes mirror what the caller returned,
+// and a throwing sink never affects the run.
+// ---------------------------------------------------------------------------
+
+describe("createTidegateRuntime — action-call observation", () => {
+  test("every executed call emits one `executed` observation with identity", async () => {
+    const observations: ActionCallObservation[] = [];
+    const { runtime, interaction } = multiCallRuntime({
+      onActionCall: (observation) => {
+        observations.push(observation);
+      },
+    });
+
+    const response = await runtime.invokeInteraction({
+      interactionId: interaction.contract.id,
+      request: multiCallRequest(),
+      auth: demoAuth,
+    });
+
+    expect(response.status).toBe("ok");
+    expect(observations).toHaveLength(3);
+    for (const observation of observations) {
+      expect(observation.outcome).toBe("executed");
+      expect(observation.actionId).toBe("booking.read");
+      expect(observation.interactionId).toBe(interaction.contract.id);
+      expect(observation.invocationId).not.toBe("");
+    }
+  });
+
+  test("a live revocation denial is observed as `denied` with its code", async () => {
+    let revoked = false;
+    const observations: ActionCallObservation[] = [];
+    const { runtime, interaction } = multiCallRuntime(
+      {
+        revocation: {
+          async isRevoked() {
+            return revoked
+              ? { scope: "interaction", severity: "deny_next" }
+              : undefined;
+          },
+        },
+        onActionCall: (observation) => {
+        observations.push(observation);
+      },
+      },
+      (n) => {
+        if (n === 1) {
+          revoked = true;
+        }
+      },
+    );
+
+    const response = await runtime.invokeInteraction({
+      interactionId: interaction.contract.id,
+      request: multiCallRequest(),
+      auth: demoAuth,
+    });
+
+    expect(response.status).toBe("ok");
+    expect(observations.map(({ outcome, code }) => ({ outcome, code }))).toEqual([
+      { outcome: "executed", code: undefined },
+      { outcome: "denied", code: "interaction_revoked" },
+      { outcome: "denied", code: "interaction_revoked" },
+    ]);
+  });
+
+  test("a permission denial is observed as `denied` with permission_denied", async () => {
+    const observations: ActionCallObservation[] = [];
+    const runtime = createTidegateRuntime({
+      actions: new Map(Object.entries(demoActions)),
+      confirmationSecret: TEST_CONFIRMATION_SECRET,
+      interactions: demoInteractions,
+      executionAuthority: {
+        onActionCall: (observation) => {
+        observations.push(observation);
+      },
+      },
+    });
+    const viewerAuth: RuntimeAuthContext = {
+      ...demoAuth,
+      authorization: { permissions: [], resourceGrants: [] },
+      permissions: [],
+    };
+
+    const response = await runtime.invokeInteraction({
+      interactionId: "ix.booking.cancelAppointment",
+      request: validRequest(),
+      auth: viewerAuth,
+    });
+
+    expect(response.status).not.toBe("ok");
+    expect(observations).toHaveLength(1);
+    expect(observations[0]).toMatchObject({
+      actionId: "booking.cancel",
+      outcome: "denied",
+      code: "permission_denied",
+    });
+  });
+
+  test("a throwing observation sink never affects the run", async () => {
+    const { runtime, interaction } = multiCallRuntime({
+      onActionCall: () => {
+        throw new Error("sink exploded");
+      },
+    });
+
+    const response = await runtime.invokeInteraction({
+      interactionId: interaction.contract.id,
+      request: multiCallRequest(),
+      auth: demoAuth,
+    });
+
+    expect(response.status).toBe("ok");
+    if (response.status !== "ok") throw new Error("expected ok");
+    expect(response.output).toEqual({
+      outcomes: [{ ok: true }, { ok: true }, { ok: true }],
+    });
   });
 });

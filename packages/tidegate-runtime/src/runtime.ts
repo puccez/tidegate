@@ -30,6 +30,7 @@ import {
 } from "./effective-capabilities.ts";
 import {
   createExecutionAuthorityGuard,
+  type ActionCallObservation,
   type ExecutionAuthorityGuard,
   type ExecutionAuthorityPorts,
 } from "./execution-authority.ts";
@@ -383,6 +384,7 @@ function createTrustedRuntimeActionCaller({
   guard,
   invocationId,
   now,
+  onActionCall,
   policy,
   policyHeader,
   signal,
@@ -407,6 +409,12 @@ function createTrustedRuntimeActionCaller({
   guard: ExecutionAuthorityGuard;
   invocationId: string;
   now: () => number;
+  /**
+   * Observational audit tap (#25): receives the terminal outcome of every
+   * action call decided at this choke point. Never consulted for the
+   * decision; a throwing or rejecting sink is swallowed.
+   */
+  onActionCall?: (observation: ActionCallObservation) => void | Promise<void>;
   policy: RuntimeInteractionPolicy;
   policyHeader: PolicyInteractionHeader;
   signal: AbortSignal;
@@ -419,187 +427,231 @@ function createTrustedRuntimeActionCaller({
   // only be admitted through the constrained execution context.
   const constrained = applyConstraints(constraints);
 
+  const observeActionCall = (
+    observation: Omit<ActionCallObservation, "invocationId" | "interactionId">,
+  ): void => {
+    if (onActionCall === undefined) {
+      return;
+    }
+    try {
+      // The sink may be async; its promise is deliberately not awaited (an
+      // audit tap must not add latency to the call path), but the rejection
+      // handler is attached so a failing sink can never become an unhandled
+      // rejection.
+      void Promise.resolve(
+        onActionCall({
+          invocationId,
+          interactionId: policy.id,
+          ...observation,
+        }),
+      ).catch((error) => {
+        console.warn("action-call observation sink rejected; ignoring", error);
+      });
+    } catch (error) {
+      console.warn("action-call observation sink threw; ignoring", error);
+    }
+  };
+
   return {
     allowedActionIds,
     call: async (actionId: string, input: unknown) => {
-      if (signal.aborted) {
-        throw runtimeError(
-          "interaction_timeout",
-          "This interaction is no longer accepting action calls.",
-          "failed",
-        );
-      }
-
-      const allowedAction = allowedActionsById.get(actionId);
-
-      if (!allowedAction) {
-        throw runtimeError(
-          "action_not_allowed",
-          "This interaction cannot call the requested action.",
-          "rejected",
-        );
-      }
-
-      const budget = constrained.registerActionCall(actionId);
-
-      if (!budget.ok) {
-        throw runtimeError("action_not_allowed", budget.message, "rejected");
-      }
-
-      // Snapshot gate (#28): the effective set was computed once at
-      // execution start from the same engine rules the live checks below
-      // apply. A withheld capability is still injected into the sandbox
-      // (the declared surface never narrows) but calling it throws the same
-      // structured error the live path produces — the denied-stub contract.
-      const effectiveCapability =
-        effectiveCapabilities.capabilities.get(actionId);
-
-      if (effectiveCapability === undefined) {
-        // Fail closed: the set is computed from this policy's allowlist, so
-        // a missing entry means the set does not belong to this execution.
-        throw runtimeError(
-          "action_not_allowed",
-          "This interaction cannot call the requested action.",
-          "rejected",
-        );
-      }
-
-      if (effectiveCapability.status === "withheld") {
-        throw runtimeError(
-          effectiveCapability.code,
-          effectiveCapability.message,
-          "rejected",
-        );
-      }
-
-      // Live defense in depth: a granted capability still requires the
-      // action to exist in the live catalog at call time, so removal
-      // mid-execution fails closed. But what EXECUTES is the snapshotted
-      // action ref — the effective set is frozen at execution start, so a
-      // catalog entry replaced mid-execution can never swap in a new
-      // implementation or new schemas for this execution.
-      if (!actions.has(actionId)) {
-        throw runtimeError(
-          "action_not_registered",
-          "This action is not registered.",
-          "rejected",
-        );
-      }
-
-      const action = effectiveCapability.action;
-
-      // #25 live-state seam: consult the execution-authority guard AFTER the
-      // static counter / effective-capability gates (so we never debit budget
-      // for a call the frozen limits already reject) and right before the final
-      // policy decision + effect. The guard attempts the budget debit and the
-      // revocation read, folding both into the snapshot the pure engine reads —
-      // the single decision stays source of truth (no second scattered check).
-      const authorization = await guard.authorizeActionCall({
-        actionId,
-        now: now(),
-      });
-
-      // Finding #2: a refund port that throws must NOT mask the structured
-      // rejection it is being called for. Refunding is a best-effort cleanup of
-      // an uncharged pre-dispatch debit; if it rejects we log and still throw
-      // the intended structured error, so the caller sees the real reason (deny
-      // / schema-invalid) rather than an opaque refund failure.
-      const settleWithoutMasking = async (): Promise<void> => {
-        try {
-          await authorization.settle.refundIfUncharged();
-        } catch (error) {
-          console.warn(
-            "execution-authority refund port threw during settle; proceeding with the structured rejection",
-            error,
-          );
-        }
-      };
-
-      const decision = decidePolicy({
-        kind: "action",
-        phase: "invoke",
-        auth,
-        interaction: policyHeader,
-        action,
-        allowedAction,
-        input,
-        liveState: authorization.liveState,
-        now: now(),
-      });
-
-      if (decision.outcome === "deny") {
-        // Refund a debit that never reached an effect. Live denials (revoked /
-        // budget) charged nothing, so this is a no-op for them; a
-        // permission/effect/tenant deny that rode past a successful debit is
-        // refunded here (pre-dispatch, so the refund is safe).
-        await settleWithoutMasking();
-        throw runtimeError(
-          INVOKE_POLICY_DENY_CODES[decision.reason],
-          decision.message,
-          "rejected",
-        );
-      }
-
-      const parsedInputResult = action.inputSchema.safeParse(input);
-
-      if (!parsedInputResult.success) {
-        await settleWithoutMasking();
-        throw runtimeError(
-          "action_input_invalid",
-          "Action input is invalid.",
-          "failed",
-        );
-      }
-
-      const actionAbortController = new AbortController();
-      const abortActionFromInteraction = () => actionAbortController.abort();
-
-      if (signal.aborted) {
-        actionAbortController.abort();
-      } else {
-        signal.addEventListener("abort", abortActionFromInteraction, {
-          once: true,
-        });
-      }
-
-      let result: unknown;
-
       try {
-        result = await withTimeout({
-          onTimeout: () => actionAbortController.abort(),
-          timeoutMs:
-            allowedAction.timeoutMs ??
-            policy.timeout.perActionMs ??
-            policy.timeout.executionMs,
-          operation: action.execute({
-            input: parsedInputResult.data,
-            auth,
-            interaction: {
-              id: policy.id,
-              version: policy.version,
-              allowedActionIds,
-            },
-            invocationId,
-            signal: actionAbortController.signal,
-          }),
+        const output = await callAdmitted(actionId, input);
+        observeActionCall({ actionId, outcome: "executed" });
+        return output;
+      } catch (error) {
+        const normalized = normalizeThrownError(error);
+        observeActionCall({
+          actionId,
+          outcome: normalized.status === "rejected" ? "denied" : "failed",
+          code: normalized.code,
+          ...(error instanceof Error && error.message !== ""
+            ? { message: error.message }
+            : {}),
         });
-      } finally {
-        signal.removeEventListener("abort", abortActionFromInteraction);
+        throw error;
       }
-
-      const parsedOutputResult = action.outputSchema.safeParse(result);
-
-      if (!parsedOutputResult.success) {
-        throw runtimeError(
-          "action_output_invalid",
-          "Action output is invalid.",
-          "failed",
-        );
-      }
-
-      return parsedOutputResult.data;
     },
   };
+
+  async function callAdmitted(actionId: string, input: unknown) {
+    if (signal.aborted) {
+      throw runtimeError(
+        "interaction_timeout",
+        "This interaction is no longer accepting action calls.",
+        "failed",
+      );
+    }
+
+    const allowedAction = allowedActionsById.get(actionId);
+
+    if (!allowedAction) {
+      throw runtimeError(
+        "action_not_allowed",
+        "This interaction cannot call the requested action.",
+        "rejected",
+      );
+    }
+
+    const budget = constrained.registerActionCall(actionId);
+
+    if (!budget.ok) {
+      throw runtimeError("action_not_allowed", budget.message, "rejected");
+    }
+
+    // Snapshot gate (#28): the effective set was computed once at
+    // execution start from the same engine rules the live checks below
+    // apply. A withheld capability is still injected into the sandbox
+    // (the declared surface never narrows) but calling it throws the same
+    // structured error the live path produces — the denied-stub contract.
+    const effectiveCapability =
+      effectiveCapabilities.capabilities.get(actionId);
+
+    if (effectiveCapability === undefined) {
+      // Fail closed: the set is computed from this policy's allowlist, so
+      // a missing entry means the set does not belong to this execution.
+      throw runtimeError(
+        "action_not_allowed",
+        "This interaction cannot call the requested action.",
+        "rejected",
+      );
+    }
+
+    if (effectiveCapability.status === "withheld") {
+      throw runtimeError(
+        effectiveCapability.code,
+        effectiveCapability.message,
+        "rejected",
+      );
+    }
+
+    // Live defense in depth: a granted capability still requires the
+    // action to exist in the live catalog at call time, so removal
+    // mid-execution fails closed. But what EXECUTES is the snapshotted
+    // action ref — the effective set is frozen at execution start, so a
+    // catalog entry replaced mid-execution can never swap in a new
+    // implementation or new schemas for this execution.
+    if (!actions.has(actionId)) {
+      throw runtimeError(
+        "action_not_registered",
+        "This action is not registered.",
+        "rejected",
+      );
+    }
+
+    const action = effectiveCapability.action;
+
+    // #25 live-state seam: consult the execution-authority guard AFTER the
+    // static counter / effective-capability gates (so we never debit budget
+    // for a call the frozen limits already reject) and right before the final
+    // policy decision + effect. The guard attempts the budget debit and the
+    // revocation read, folding both into the snapshot the pure engine reads —
+    // the single decision stays source of truth (no second scattered check).
+    const authorization = await guard.authorizeActionCall({
+      actionId,
+      now: now(),
+    });
+
+    // Finding #2: a refund port that throws must NOT mask the structured
+    // rejection it is being called for. Refunding is a best-effort cleanup of
+    // an uncharged pre-dispatch debit; if it rejects we log and still throw
+    // the intended structured error, so the caller sees the real reason (deny
+    // / schema-invalid) rather than an opaque refund failure.
+    const settleWithoutMasking = async (): Promise<void> => {
+      try {
+        await authorization.settle.refundIfUncharged();
+      } catch (error) {
+        console.warn(
+          "execution-authority refund port threw during settle; proceeding with the structured rejection",
+          error,
+        );
+      }
+    };
+
+    const decision = decidePolicy({
+      kind: "action",
+      phase: "invoke",
+      auth,
+      interaction: policyHeader,
+      action,
+      allowedAction,
+      input,
+      liveState: authorization.liveState,
+      now: now(),
+    });
+
+    if (decision.outcome === "deny") {
+      // Refund a debit that never reached an effect. Live denials (revoked /
+      // budget) charged nothing, so this is a no-op for them; a
+      // permission/effect/tenant deny that rode past a successful debit is
+      // refunded here (pre-dispatch, so the refund is safe).
+      await settleWithoutMasking();
+      throw runtimeError(
+        INVOKE_POLICY_DENY_CODES[decision.reason],
+        decision.message,
+        "rejected",
+      );
+    }
+
+    const parsedInputResult = action.inputSchema.safeParse(input);
+
+    if (!parsedInputResult.success) {
+      await settleWithoutMasking();
+      throw runtimeError(
+        "action_input_invalid",
+        "Action input is invalid.",
+        "failed",
+      );
+    }
+
+    const actionAbortController = new AbortController();
+    const abortActionFromInteraction = () => actionAbortController.abort();
+
+    if (signal.aborted) {
+      actionAbortController.abort();
+    } else {
+      signal.addEventListener("abort", abortActionFromInteraction, {
+        once: true,
+      });
+    }
+
+    let result: unknown;
+
+    try {
+      result = await withTimeout({
+        onTimeout: () => actionAbortController.abort(),
+        timeoutMs:
+          allowedAction.timeoutMs ??
+          policy.timeout.perActionMs ??
+          policy.timeout.executionMs,
+        operation: action.execute({
+          input: parsedInputResult.data,
+          auth,
+          interaction: {
+            id: policy.id,
+            version: policy.version,
+            allowedActionIds,
+          },
+          invocationId,
+          signal: actionAbortController.signal,
+        }),
+      });
+    } finally {
+      signal.removeEventListener("abort", abortActionFromInteraction);
+    }
+
+    const parsedOutputResult = action.outputSchema.safeParse(result);
+
+    if (!parsedOutputResult.success) {
+      throw runtimeError(
+        "action_output_invalid",
+        "Action output is invalid.",
+        "failed",
+      );
+    }
+
+    return parsedOutputResult.data;
+  }
 }
 
 function responseFromExecutionResult({
@@ -936,6 +988,7 @@ async function invokeWithRuntimePolicy({
       guard,
       invocationId,
       now,
+      onActionCall: executionAuthority?.onActionCall,
       policy,
       policyHeader: policyHeader(initialTokenState),
       signal: interactionAbortController.signal,

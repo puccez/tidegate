@@ -29,6 +29,12 @@ export const SANDBOX_WORKSPACE_WRITE_ORDER: readonly string[] = [
 export type PublishedInteractionSandboxWorkspace =
   TidegateSandboxTextWorkspace & {
     readonly rootPath: string;
+    /**
+     * Backend-specific identifier of the underlying sandbox (microVM name,
+     * local workspace path, …), used as a tracing dimension. Optional so
+     * in-memory backends can omit it.
+     */
+    readonly sandboxId?: string;
     cleanup: () => Promise<void>;
   };
 
@@ -73,6 +79,12 @@ export type PublishedInteractionSandboxProvider = {
  *   and workspace paths that cannot escape the workspace root.
  */
 export type SandboxBackend = {
+  /**
+   * Stable backend name (`local`, `deterministic`, `vercel`, …) recorded as
+   * a tracing dimension so operators can attribute latency and failures to
+   * the backend that produced them.
+   */
+  readonly name?: string;
   readonly workspaceFactory: PublishedInteractionSandboxWorkspaceFactory;
   readonly provider: PublishedInteractionSandboxProvider;
 };

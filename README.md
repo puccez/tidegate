@@ -11,37 +11,6 @@ The result is reusable runtime logic: an interaction built once by an agent
 becomes a typed, auditable endpoint that your team or your product calls from
 code, with no agent in the loop.
 
-## How it works
-
-```mermaid
-flowchart LR
-  subgraph authoring ["Authoring (once)"]
-    AG[Agent] -->|"writes interaction.ts"| AS[Authoring sandbox]
-    AS -->|"publish gate:<br/>policy + validate + tests"| DB[("Postgres<br/>published artifact")]
-  end
-
-  subgraph invocation ["Invoke (every call)"]
-    U[Caller] -->|"POST /invoke<br/>interaction id + input"| K["Invoke handler + kernel<br/>(policy, permissions,<br/>budget, revocation)"]
-    K -->|"load source snapshot"| DB
-    K -->|"materialize runner +<br/>capability manifest"| SB["Ephemeral execution sandbox<br/>(destroyed after the call)"]
-    SB <-->|"NDJSON action<br/>requests / results"| K
-    K -->|"gate-checked, per call"| ACT["Registered actions<br/>(your backend)"]
-    K -->|response| U
-  end
-```
-
-Two properties do the heavy lifting:
-
-- **The sandbox proposes, the kernel disposes.** Generated code never executes
-  an action itself — every `ctx.capabilities.*` call travels over the NDJSON
-  protocol to the trusted kernel, which checks the allowlist, permissions,
-  live budget and revocation before executing the real action and returning
-  the result.
-- **The sandbox is disposable, the artifact is not.** The published interaction
-  lives in the database as an immutable source snapshot. Each invoke
-  re-materializes it into a fresh execution sandbox that is destroyed when the
-  call completes.
-
 ## Packages
 
 | Package | What it is | License | npm |
@@ -50,6 +19,7 @@ Two properties do the heavy lifting:
 | [`@tidegate/sdk`](./packages/tidegate-sdk) | Server SDK: action bridge (`defineTidegateActions`, `createTidegateActionHandler`), public interaction invoke client | Apache-2.0 | [npm](https://www.npmjs.com/package/@tidegate/sdk) |
 | [`@tidegate/runtime`](./packages/tidegate-runtime) | The kernel: remote action bridge, typed capability codegen, sandbox execution, publication gates | FSL-1.1-ALv2 | — |
 | [`@tidegate/auth-server`](./packages/tidegate-auth-server) | Server-side auth: API keys, WorkOS M2M token verification, public API auth context | FSL-1.1-ALv2 | — |
+| [`create-tidegate`](./packages/create-tidegate) | Onboarding CLI: scaffolds the action bridge into a Next.js backend (`init`) and verifies the wiring layer by layer (`doctor`) | Apache-2.0 | — |
 
 ## Quickstart: expose your backend to TideGate
 
@@ -58,6 +28,12 @@ endpoint (`tidegate.actionCatalog.v1`) plus one protected invoke endpoint.
 TideGate can call only registered actions that are also allowlisted by the
 invoking interaction, with input validation, declared-output validation, and
 server-derived auth.
+
+The fastest path is the scaffolder: [`create-tidegate`](./packages/create-tidegate)
+sets up the catalog, both routes, and the bridge secret in an existing Next.js
+App Router project, and its `doctor` command verifies the wiring stage by
+stage (its README includes a copy-paste prompt for AI coding agents). To wire
+it manually instead:
 
 ```bash
 npm install @tidegate/sdk @tidegate/contracts zod

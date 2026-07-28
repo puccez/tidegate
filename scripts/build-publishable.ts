@@ -25,6 +25,7 @@ type PackageJson = {
   version: string;
   description?: string;
   license?: string;
+  bin?: Record<string, string>;
   dependencies?: Record<string, string>;
   exports?: Record<string, string>;
 };
@@ -87,6 +88,39 @@ if (!rootExport) {
   throw new Error(`${manifest.name}: missing the "." export in package.json`);
 }
 
+// Bin entries follow the same src -> dist mapping as exports. The emitted JS
+// keeps the source shebang (tsc preserves a leading #!), so the dist file is
+// directly executable by npm/bunx.
+const publishedBin: Record<string, string> = {};
+for (const [binName, target] of Object.entries(manifest.bin ?? {})) {
+  if (!/^\.\/src\/.+\.ts$/.test(target)) {
+    throw new Error(
+      `${manifest.name}: bin "${binName}" -> ${JSON.stringify(target)} ` +
+        'not supported: expected a "./src/**/*.ts" string specifier',
+    );
+  }
+  const entry = target.slice("./src/".length, -".ts".length);
+  if (entry.split("/").includes("..")) {
+    throw new Error(
+      `${manifest.name}: bin "${binName}" target ${target} must not traverse out of src/`,
+    );
+  }
+  const distTarget = join(distPkgDir, "dist", `${entry}.js`);
+  if (!existsSync(distTarget)) {
+    throw new Error(
+      `${manifest.name}: bin "${binName}" target ${target} did not emit to dist ` +
+        "(is it excluded from tsconfig.build.json?)",
+    );
+  }
+  if (!readFileSync(distTarget, "utf8").startsWith("#!")) {
+    throw new Error(
+      `${manifest.name}: bin "${binName}" emitted without a shebang; ` +
+        `add "#!/usr/bin/env node" as the first line of ${target}`,
+    );
+  }
+  publishedBin[binName] = `./dist/${entry}.js`;
+}
+
 const dependencies: Record<string, string> = {};
 for (const [dep, range] of Object.entries(manifest.dependencies ?? {})) {
   dependencies[dep] = range.startsWith("workspace:")
@@ -110,6 +144,7 @@ const published = {
   main: rootExport.default,
   types: rootExport.types,
   exports: publishedExports,
+  ...(Object.keys(publishedBin).length > 0 ? { bin: publishedBin } : {}),
   files: ["dist"],
   ...(Object.keys(dependencies).length > 0 ? { dependencies } : {}),
   publishConfig: { access: "public" },

@@ -73,6 +73,11 @@ export type SandboxBackendConformanceOptions = {
       getStopCalls: () => number;
     };
   };
+  /**
+   * Per-test timeout for slow backends (remote microVMs allocate real
+   * infrastructure per scenario). Defaults to the runner's own default.
+   */
+  timeoutMs?: number;
 };
 
 const conformanceAuth: RuntimeAuthContext = {
@@ -152,6 +157,7 @@ type ScenarioRun = {
   result: PublishedInteractionExecutionResult;
   trace: NormalizedTraceShape;
   writes: string[];
+  cleanups: number;
 };
 
 async function executeScenario({
@@ -170,6 +176,7 @@ async function executeScenario({
     store,
   });
   const writes: string[] = [];
+  let cleanups = 0;
   const recordingBackend: SandboxBackend = {
     provider: backend.provider,
     workspaceFactory: {
@@ -185,6 +192,12 @@ async function executeScenario({
               return (args: { path: string; content: string }) => {
                 writes.push(args.path);
                 return target.writeTextFile(args);
+              };
+            }
+            if (property === "cleanup") {
+              return () => {
+                cleanups += 1;
+                return target.cleanup();
               };
             }
             return Reflect.get(target, property, receiver);
@@ -210,6 +223,7 @@ async function executeScenario({
 
   return {
     result,
+    cleanups,
     trace: {
       traceStatus: snapshot!.trace.status,
       spans: snapshot!.spans.map((span) => ({
@@ -275,9 +289,16 @@ export function runSandboxBackendConformance({
   createBackend,
   name,
   runawayTimeout,
+  timeoutMs,
 }: SandboxBackendConformanceOptions): void {
+  const scenarioTest: typeof test =
+    timeoutMs === undefined
+      ? test
+      : (((label: string, fn: () => Promise<void>) =>
+          test(label, fn, timeoutMs)) as typeof test);
+
   describe(`sandbox backend conformance: ${name}`, () => {
-    test("happy path: identical result, trace shape, and workspace write order", async () => {
+    scenarioTest("happy path: identical result, trace shape, and workspace write order", async () => {
       const artifact = cloneArtifact({
         source: `
 export default async function run(input) {
@@ -285,7 +306,7 @@ export default async function run(input) {
 }
 `.trim(),
       });
-      const { result, trace, writes } = await executeScenario({
+      const { result, trace, writes, cleanups } = await executeScenario({
         backend: createBackend(),
         payload: createPayload({
           artifact,
@@ -304,9 +325,10 @@ export default async function run(input) {
         resultMarks: [{ status: "ok", errorCode: undefined }],
       });
       expect(writes).toEqual([...SANDBOX_WORKSPACE_WRITE_ORDER]);
+      expect(cleanups).toBe(1);
     });
 
-    test("action call: host mediation with the one-invocation token", async () => {
+    scenarioTest("action call: host mediation with the one-invocation token", async () => {
       const calls: unknown[] = [];
       const payload = createPayload({
         artifact: cloneArtifact(),
@@ -347,7 +369,7 @@ export default async function run(input) {
       expect(trace.spans).toEqual(HAPPY_SPANS);
     });
 
-    test("action-token mismatch is rejected as action_not_allowed", async () => {
+    scenarioTest("action-token mismatch is rejected as action_not_allowed", async () => {
       const expectedToken = createPublishedInteractionActionCallToken(
         "a_different_invocation",
       );
@@ -390,7 +412,7 @@ export default async function run(input) {
       });
     });
 
-    test("max-action-call overflow is rejected without reaching the runtime again", async () => {
+    scenarioTest("max-action-call overflow is rejected without reaching the runtime again", async () => {
       let calls = 0;
       const artifact = cloneArtifact({
         source: `
@@ -431,7 +453,7 @@ export default async function run(input, ctx) {
       ]);
     });
 
-    test("a throwing interaction fails as interaction_failed", async () => {
+    scenarioTest("a throwing interaction fails as interaction_failed", async () => {
       const artifact = cloneArtifact({
         source: `
 export default async function run() {
@@ -440,7 +462,7 @@ export default async function run() {
 `.trim(),
       });
 
-      const { result, trace } = await executeScenario({
+      const { result, trace, cleanups } = await executeScenario({
         backend: createBackend(),
         payload: createPayload({
           artifact,
@@ -458,9 +480,10 @@ export default async function run() {
         spans: spansWithRunError("interaction_failed"),
         resultMarks: [{ status: "failed", errorCode: "interaction_failed" }],
       });
+      expect(cleanups).toBe(1);
     });
 
-    test("top-level await resolves before the interaction runs (ESM semantics)", async () => {
+    scenarioTest("top-level await resolves before the interaction runs (ESM semantics)", async () => {
       const artifact = cloneArtifact({
         source: `
 const topLevelValue = await Promise.resolve("tla_ok");
@@ -491,7 +514,7 @@ export default async function run(input) {
       expect(trace.spans).toEqual(HAPPY_SPANS);
     });
 
-    test("a module that throws during top-level evaluation fails with its message", async () => {
+    scenarioTest("a module that throws during top-level evaluation fails with its message", async () => {
       const artifact = cloneArtifact({
         source: `
 throw new Error("top-level boom");
@@ -518,7 +541,7 @@ export default async function run() {
       expect(trace.spans).toEqual(spansWithRunError("interaction_failed"));
     });
 
-    test("timer primitives available to the local runner exist in every backend", async () => {
+    scenarioTest("timer primitives available to the local runner exist in every backend", async () => {
       const artifact = cloneArtifact({
         source: `
 export default async function run(input) {
@@ -562,7 +585,7 @@ export default async function run(input) {
       });
     });
 
-    test("source-policy violations are rejected before any backend work", async () => {
+    scenarioTest("source-policy violations are rejected before any backend work", async () => {
       const artifact = cloneArtifact({
         source: `
 export default async function run() {
@@ -594,7 +617,7 @@ export default async function run() {
       expect(writes).toEqual([]);
     });
 
-    test("capability/allowlist mismatch is rejected before any backend work", async () => {
+    scenarioTest("capability/allowlist mismatch is rejected before any backend work", async () => {
       const base = createPayload({
         artifact: cloneArtifact(),
         invocationId: `conformance_allowlist_${name}`,
@@ -618,7 +641,7 @@ export default async function run() {
       expect(writes).toEqual([]);
     });
 
-    test("global strip holds at module top-level AND at runtime", async () => {
+    scenarioTest("global strip holds at module top-level AND at runtime", async () => {
       const artifact = cloneArtifact({
         source: String.raw`
 const topLevel = ${GLOBAL_STRIP_PROBE};
@@ -649,7 +672,7 @@ export default async function run() {
       });
     });
 
-    test("dynamic code generation from strings stays disabled at runtime", async () => {
+    scenarioTest("dynamic code generation from strings stays disabled at runtime", async () => {
       const artifact = cloneArtifact({
         source: String.raw`
 export default async function run() {
@@ -673,7 +696,7 @@ export default async function run() {
       });
     });
 
-    test("workspace rejects path traversal and absolute paths", async () => {
+    scenarioTest("workspace rejects path traversal and absolute paths", async () => {
       const backend = createBackend();
       const workspace = await backend.workspaceFactory.createWorkspace(
         createPayload({
@@ -695,7 +718,7 @@ export default async function run() {
       }
     });
 
-    test("a never-settling interaction normalizes to timed_out", async () => {
+    scenarioTest("a never-settling interaction normalizes to timed_out", async () => {
       const artifact = cloneArtifact({
         source: `
 export default async function run() {
@@ -710,7 +733,7 @@ export default async function run() {
         },
       });
 
-      const { result, trace } = await executeScenario({
+      const { result, trace, cleanups } = await executeScenario({
         backend: createBackend(),
         payload: createPayload({
           artifact,
@@ -727,10 +750,12 @@ export default async function run() {
       expect(trace.resultMarks).toEqual([
         { status: "timed_out", errorCode: "interaction_timeout" },
       ]);
+      // Cleanup after an error is part of the contract, not best-effort.
+      expect(cleanups).toBe(1);
     });
 
     if (runawayTimeout !== undefined) {
-      test("an uninterruptible runaway is timed out and the transport is stopped", async () => {
+      scenarioTest("an uninterruptible runaway is timed out and the transport is stopped", async () => {
         const { backend, getStopCalls } =
           runawayTimeout.createObservedBackend();
         const artifact = cloneArtifact({

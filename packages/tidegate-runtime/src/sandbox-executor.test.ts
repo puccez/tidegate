@@ -731,3 +731,38 @@ export default async function run() {
     expectErrorCode(response, "failed", "interaction_failed");
   });
 });
+
+describe("SandboxedPublishedInteractionExecutor allocation failures", () => {
+  test("a backend that cannot allocate fails loudly with the allocation message", async () => {
+    const executor = createSandboxedPublishedInteractionExecutor({
+      backend: {
+        name: "vercel",
+        workspaceFactory: {
+          async createWorkspace() {
+            throw new Error("OIDC token expired");
+          },
+        },
+        provider: {
+          async execute() {
+            throw new Error("provider must not run when allocation fails");
+          },
+        },
+      },
+    });
+
+    const result = await executor.execute(createPayload(), {
+      async callAction() {
+        throw new Error("no action expected");
+      },
+    });
+
+    expect(result).toEqual({
+      status: "failed",
+      error: {
+        code: "interaction_failed",
+        message: "Sandbox allocation failed: OIDC token expired",
+        retryable: false,
+      },
+    });
+  });
+});

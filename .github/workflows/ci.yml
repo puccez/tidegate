@@ -29,3 +29,4 @@ jobs:
         run: |
           (cd packages/tidegate-contracts && bun run build:pack)
           (cd packages/tidegate-sdk && bun run build:pack)
+          (cd packages/create-tidegate && bun run build:pack)

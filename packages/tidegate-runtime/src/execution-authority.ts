@@ -301,6 +301,24 @@ export type ExecutionAuthorityEvent =
   | { kind: "budget-debited"; actionId: string; units: number }
   | { kind: "budget-refunded"; actionId: string; units: number };
 
+/**
+ * Terminal observation of one action call at the trusted-caller choke point.
+ * `denied` = a structured pre-effect rejection (allowlist, permission, tenant,
+ * live revocation/budget — the gate said no); `failed` = the call was admitted
+ * but did not complete (invalid input/output, the action threw); `executed` =
+ * the effect ran and returned a schema-valid output. Purely observational:
+ * the sink can never influence the decision, and a throwing sink is ignored.
+ */
+export type ActionCallObservation = {
+  invocationId: string;
+  interactionId: string;
+  actionId: string;
+  outcome: "executed" | "denied" | "failed";
+  /** Structured invoke error code on `denied`/`failed` (e.g. permission_denied). */
+  code?: string;
+  message?: string;
+};
+
 /** Injected live-state ports, threaded from `createTidegateRuntime` options. */
 export type ExecutionAuthorityPorts = {
   revocation?: RevocationChecker;
@@ -313,4 +331,12 @@ export type ExecutionAuthorityPorts = {
   budgetPolicy?: ExecutionBudgetPolicy;
   /** Optional structured sink for denial/debit audit marks. */
   onEvent?: (event: ExecutionAuthorityEvent) => void;
+  /**
+   * Optional observational sink for the terminal outcome of every action call
+   * (executed / denied / failed with its structured code). Emitted at the same
+   * choke point the policy decisions run through, AFTER the outcome is
+   * settled — an audit tap, never an authorization input. A returned promise
+   * is not awaited; sync throws and async rejections are both swallowed.
+   */
+  onActionCall?: (observation: ActionCallObservation) => void | Promise<void>;
 };

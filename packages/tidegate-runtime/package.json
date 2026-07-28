@@ -7,6 +7,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./demo-fixtures": "./src/demo-fixtures.ts",
+    "./sandbox-vercel": "./src/sandbox-backend-vercel.ts",
     "./testing": "./src/interaction-test-harness.ts"
   },
   "scripts": {
@@ -16,6 +17,7 @@
   },
   "dependencies": {
     "@tidegate/contracts": "workspace:*",
+    "@vercel/sandbox": "^2.9.0",
     "typescript": "^6.0.3",
     "zod": "4.4.3"
   },

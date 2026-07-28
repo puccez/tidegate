@@ -11,6 +11,37 @@ The result is reusable runtime logic: an interaction built once by an agent
 becomes a typed, auditable endpoint that your team or your product calls from
 code, with no agent in the loop.
 
+## How it works
+
+```mermaid
+flowchart LR
+  subgraph authoring ["Authoring (once)"]
+    AG[Agent] -->|"writes interaction.ts"| AS[Authoring sandbox]
+    AS -->|"publish gate:<br/>policy + validate + tests"| DB[("Postgres<br/>published artifact")]
+  end
+
+  subgraph invocation ["Invoke (every call)"]
+    U[Caller] -->|"POST /invoke<br/>interaction id + input"| K["Invoke handler + kernel<br/>(policy, permissions,<br/>budget, revocation)"]
+    K -->|"load source snapshot"| DB
+    K -->|"materialize runner +<br/>capability manifest"| SB["Ephemeral execution sandbox<br/>(destroyed after the call)"]
+    SB <-->|"NDJSON action<br/>requests / results"| K
+    K -->|"gate-checked, per call"| ACT["Registered actions<br/>(your backend)"]
+    K -->|response| U
+  end
+```
+
+Two properties do the heavy lifting:
+
+- **The sandbox proposes, the kernel disposes.** Generated code never executes
+  an action itself — every `ctx.capabilities.*` call travels over the NDJSON
+  protocol to the trusted kernel, which checks the allowlist, permissions,
+  live budget and revocation before executing the real action and returning
+  the result.
+- **The sandbox is disposable, the artifact is not.** The published interaction
+  lives in the database as an immutable source snapshot. Each invoke
+  re-materializes it into a fresh execution sandbox that is destroyed when the
+  call completes.
+
 ## Packages
 
 | Package | What it is | License | npm |

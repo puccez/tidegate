@@ -2,10 +2,9 @@
 
 Scaffold a Tidegate customer backend integration and verify its wiring.
 
-> **Distribution status**: not yet on the public npm registry. Design partners
-> receive a packed tarball (`bun run build:pack` → `dist-pkg/` → `npm pack`)
-> and run it as `npx ./create-tidegate-<version>.tgz`. Once published,
-> `bunx create-tidegate` works as written below.
+Published on npm as [`create-tidegate`](https://www.npmjs.com/package/create-tidegate):
+run it with `npx create-tidegate`, `bunx create-tidegate`, or the
+`create-*` shorthand (`npm create tidegate` / `bun create tidegate`).
 
 ## What you are building
 
@@ -34,9 +33,6 @@ Your integration surface is exactly two HTTP endpoints plus one env var:
 it works, layer by layer.
 
 ## Quick start
-
-Until the package is on the registry, replace `bunx create-tidegate` below
-with the tarball invocation (`npx ./create-tidegate-<version>.tgz`).
 
 ```bash
 cd your-nextjs-backend            # existing Next.js App Router project
@@ -219,17 +215,15 @@ execution. My only job is to expose actions — interactions are NEVER written
 by hand.
 
 Repo: <path to the Next.js App Router project>.
-CLI: <how to run create-tidegate — `npx create-tidegate` once published, or
-the tarball I gave you, e.g. `npx ./create-tidegate-0.1.0.tgz`>.
 
-1. Run the CLI's `init` at the project root (use `--dir` if needed). Read its
-   `--help` first if anything is unclear; it documents the full behavior
-   contract. If init reports conflicts or a missing prerequisite, fix that
-   and re-run — it never overwrites files.
+1. Run `npx create-tidegate init` at the project root (use `--dir` if
+   needed). Read `npx create-tidegate --help` first if anything is unclear;
+   it documents the full behavior contract. If init reports conflicts or a
+   missing prerequisite, fix that and re-run — it never overwrites files.
 2. Install the runtime dependencies the init summary asks for
    (@tidegate/sdk and zod), with the package manager this repo already uses.
-3. Start the dev server, then run the CLI's doctor:
-     <CLI> doctor --json \
+3. Start the dev server, then run doctor:
+     npx create-tidegate doctor --json \
        --catalog-url http://localhost:3000/api/action-catalog \
        --actions-url http://localhost:3000/api/actions \
        --secret <value of TIDEGATE_ACTION_BRIDGE_SECRET from .env.local>

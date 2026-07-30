@@ -19,7 +19,7 @@ code, with no agent in the loop.
 | [`@tidegate/sdk`](./packages/tidegate-sdk) | Server SDK: action bridge (`defineTidegateActions`, `createTidegateActionHandler`), public interaction invoke client | Apache-2.0 | [npm](https://www.npmjs.com/package/@tidegate/sdk) |
 | [`@tidegate/runtime`](./packages/tidegate-runtime) | The kernel: remote action bridge, typed capability codegen, sandbox execution, publication gates | FSL-1.1-ALv2 | — |
 | [`@tidegate/auth-server`](./packages/tidegate-auth-server) | Server-side auth: API keys, WorkOS M2M token verification, public API auth context | FSL-1.1-ALv2 | — |
-| [`create-tidegate`](./packages/create-tidegate) | Onboarding CLI: scaffolds the action bridge into a Next.js backend (`init`) and verifies the wiring layer by layer (`doctor`) | Apache-2.0 | — |
+| [`create-tidegate`](./packages/create-tidegate) | Onboarding CLI: scaffolds the action bridge into a Next.js backend (`init`) and verifies the wiring layer by layer (`doctor`) | Apache-2.0 | [npm](https://www.npmjs.com/package/create-tidegate) |
 
 ## Quickstart: expose your backend to TideGate
 

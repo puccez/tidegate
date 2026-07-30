@@ -1,0 +1,61 @@
+name: publish
+
+# Version-gated npm publish: on every push to main, each publishable package
+# whose package.json version differs from the registry's latest is packed
+# (build:pack) and published. Pushing without a version bump publishes
+# nothing. Auth is npm Trusted Publishing (OIDC): each package must be
+# configured on npmjs.com with this repo + workflow as trusted publisher —
+# no NPM_TOKEN secret. Provenance attestation is generated automatically.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.repository == 'puccez/tidegate'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # OIDC trusted publishing needs a recent npm.
+      - run: npm install -g npm@latest
+
+      - run: bun install --frozen-lockfile
+
+      - name: Publish packages ahead of the registry
+        run: |
+          set -euo pipefail
+          for dir in tidegate-contracts tidegate-sdk create-tidegate; do
+            pkg="packages/$dir"
+            name=$(node -p "require('./$pkg/package.json').name")
+            version=$(node -p "require('./$pkg/package.json').version")
+            published=$(npm view "$name" version 2>/dev/null || echo "")
+            if [ -z "$published" ]; then
+              echo "$name: not on the registry yet. First publish is manual" \
+                "(trusted publishing requires an existing package). Skipping."
+              continue
+            fi
+            if [ "$published" = "$version" ]; then
+              echo "$name@$version already published. Skipping."
+              continue
+            fi
+            echo "$name: $published -> $version — publishing."
+            (cd "$pkg" && bun run build:pack)
+            (cd "$pkg/dist-pkg" && npm publish)
+          done

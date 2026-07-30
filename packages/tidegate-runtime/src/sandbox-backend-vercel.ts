@@ -117,6 +117,13 @@ export type VercelSandboxCreateParams = {
   runtime: string;
   timeout: number;
   networkPolicy: "deny-all";
+  /**
+   * Always `false`: the platform default (`true`) snapshots the filesystem
+   * on every `stop()` for later resume, but an invoke VM is never resumed —
+   * one VM = one invoke — so each invoke would leave a ~258MB snapshot
+   * behind, billed as storage until its 30-day expiry.
+   */
+  persistent: false;
   token?: string;
   teamId?: string;
   projectId?: string;
@@ -242,10 +249,11 @@ export function resolveVercelSandboxCredentials(
 async function createDefaultVercelSandboxClient(
   params: VercelSandboxCreateParams,
 ): Promise<VercelSandboxClient> {
-  const { networkPolicy, runtime, timeout } = params;
+  const { networkPolicy, persistent, runtime, timeout } = params;
   const sandbox = await Sandbox.create({
     ...resolveVercelSandboxCredentials(params),
     networkPolicy,
+    persistent,
     runtime,
     timeout,
   });
@@ -341,6 +349,7 @@ export class VercelPublishedInteractionSandboxWorkspaceFactory
       runtime: this.options.runtime ?? VERCEL_SANDBOX_RUNTIME,
       timeout: resolveVercelSandboxVmTimeoutMs(payload.timeout.executionMs),
       networkPolicy: "deny-all",
+      persistent: false,
       ...(this.options.credentials ?? {}),
     });
 

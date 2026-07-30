@@ -240,6 +240,8 @@ describe("VercelPublishedInteractionSandboxWorkspaceFactory", () => {
         runtime: "node24",
         timeout: 90_000,
         networkPolicy: "deny-all",
+        // One VM = one invoke: never resumed, so never snapshotted on stop.
+        persistent: false,
       },
     ]);
     expect(workspace.rootPath).toBe("/vercel/sandbox/tidegate-workspace");

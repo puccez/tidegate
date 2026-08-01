@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
 import type { TidegateActionCatalogManifestV1 } from "@tidegate/contracts";
 import { generateTidegateCapabilitiesClient } from "./capability-codegen";
+import { resolveTypeScriptCompilerInvocation } from "./publish-typecheck";
 
 const manifest: TidegateActionCatalogManifestV1 = {
   schemaVersion: "tidegate.actionCatalog.v1",
@@ -397,10 +398,11 @@ describe("generateTidegateCapabilitiesClient", () => {
 });
 
 async function runTsc(dir: string, file: string) {
+  const compiler = resolveTypeScriptCompilerInvocation();
   const process = Bun.spawn(
     [
-      "bunx",
-      "tsc",
+      compiler.command,
+      ...compiler.args,
       "--noEmit",
       "--strict",
       "--module",

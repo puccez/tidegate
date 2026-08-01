@@ -32,6 +32,7 @@ import {
   TIDEGATE_INTERACTION_AUTHORING_TEST_FILENAME,
 } from "./interaction-authoring-workspace";
 import { generateTidegateActionAuthoringFiles } from "./interaction-action-authoring-files";
+import { resolveTypeScriptCompilerInvocation } from "./publish-typecheck";
 
 const actionCatalogManifest: TidegateActionCatalogManifestV1 = {
   schemaVersion: "tidegate.actionCatalog.v1",
@@ -627,10 +628,11 @@ async function listWorkspaceFiles(
 }
 
 async function runTsc(dir: string, file: string) {
+  const compiler = resolveTypeScriptCompilerInvocation();
   const process = Bun.spawn(
     [
-      "bunx",
-      "tsc",
+      compiler.command,
+      ...compiler.args,
       "--noEmit",
       "--strict",
       "--module",

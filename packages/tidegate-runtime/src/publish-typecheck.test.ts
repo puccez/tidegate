@@ -451,7 +451,7 @@ export default async function run(input, { actions: { call } }: any) {
 });
 
 describe("resolvePublishTypecheckCheckerOptionsFromEnv", () => {
-  test("unset env yields undefined (default bunx tsc behavior)", () => {
+  test("unset env yields undefined (default workspace tsc behavior)", () => {
     expect(resolvePublishTypecheckCheckerOptionsFromEnv({})).toBeUndefined();
     expect(
       resolvePublishTypecheckCheckerOptionsFromEnv({

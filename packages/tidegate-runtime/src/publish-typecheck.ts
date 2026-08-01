@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import type { Readable } from "node:stream";
@@ -71,7 +72,8 @@ export const PUBLISH_TYPECHECK_SKIP_COMMAND = "skip";
 
 /**
  * Deploy-time checker configuration. Unset → `undefined` (callers fall back
- * to the default `bunx tsc` spawn, byte-identical to previous behavior).
+ * to the workspace TypeScript compiler resolved by
+ * `resolveTypeScriptCompilerInvocation`).
  * `TIDEGATE_PUBLISH_TYPECHECK_COMMAND=skip` disables the compiler spawn;
  * any other value replaces the spawned command, with optional
  * whitespace-separated args from `TIDEGATE_PUBLISH_TYPECHECK_ARGS`.
@@ -166,8 +168,7 @@ const SUBMITTED_SOURCE_FILENAME = "submitted-source.ts";
 const SUBMITTED_SOURCE_ORIGINAL_FILENAME = "submitted-source.original.ts";
 const SUBMITTED_SOURCE_PREFIX_LINES = 1;
 const DEFAULT_CHECKER_TIMEOUT_MS = 30_000;
-const DEFAULT_CHECKER_BASE_ARGS = [
-  "tsc",
+const DEFAULT_CHECKER_FLAGS = [
   "--noEmit",
   "--strict",
   "--module",
@@ -184,6 +185,48 @@ const DEFAULT_CHECKER_BASE_ARGS = [
   "false",
   "--noErrorTruncation",
 ];
+
+export type ResolvedTypeScriptCompilerInvocation = {
+  command: string;
+  args: string[];
+};
+
+let cachedWorkspaceCompilerInvocation:
+  | ResolvedTypeScriptCompilerInvocation
+  | null
+  | undefined;
+
+/**
+ * Resolves the TypeScript compiler that belongs to this package's dependency
+ * tree (`typescript/bin/tsc`, executed with the current JS runtime). The
+ * checker spawns inside a temporary workspace with no `node_modules`, so a
+ * bare `bunx tsc` there can resolve a stray globally-installed TypeScript of
+ * a different major version. When the workspace compiler cannot be resolved
+ * (e.g. bundled deployments without `typescript` on disk), falls back to
+ * `bunx tsc`, the previous behavior.
+ */
+export function resolveTypeScriptCompilerInvocation(): ResolvedTypeScriptCompilerInvocation {
+  if (cachedWorkspaceCompilerInvocation === undefined) {
+    try {
+      const requireFromHere = createRequire(import.meta.url);
+      const tscPath = requireFromHere.resolve("typescript/bin/tsc");
+
+      cachedWorkspaceCompilerInvocation = {
+        command: process.execPath,
+        args: [tscPath],
+      };
+    } catch {
+      cachedWorkspaceCompilerInvocation = null;
+    }
+  }
+
+  return cachedWorkspaceCompilerInvocation === null
+    ? { command: "bunx", args: ["tsc"] }
+    : {
+        command: cachedWorkspaceCompilerInvocation.command,
+        args: [...cachedWorkspaceCompilerInvocation.args],
+      };
+}
 
 export function resolvePublishTypecheckActionCatalogManifest({
   actionCatalogMetadata,
@@ -650,6 +693,24 @@ function countTopLevelParameters(params: string) {
   return count;
 }
 
+function resolveCheckerInvocation(
+  checker: PublishTypecheckCheckerOptions | undefined,
+): { command: string; baseArgs: string[] } {
+  if (checker?.command === undefined && checker?.baseArgs === undefined) {
+    const workspaceCompiler = resolveTypeScriptCompilerInvocation();
+
+    return {
+      command: workspaceCompiler.command,
+      baseArgs: [...workspaceCompiler.args, ...DEFAULT_CHECKER_FLAGS],
+    };
+  }
+
+  return {
+    command: checker.command ?? "bunx",
+    baseArgs: checker.baseArgs ?? ["tsc", ...DEFAULT_CHECKER_FLAGS],
+  };
+}
+
 async function runTypeScriptChecker({
   checker,
   entrypoint,
@@ -659,8 +720,9 @@ async function runTypeScriptChecker({
   entrypoint: string;
   workspace: string;
 }): Promise<CheckerResult> {
-  const command = checker?.command ?? "bunx";
-  const args = [...(checker?.baseArgs ?? DEFAULT_CHECKER_BASE_ARGS), entrypoint];
+  const resolved = resolveCheckerInvocation(checker);
+  const command = resolved.command;
+  const args = [...resolved.baseArgs, entrypoint];
   const timeoutMs = checker?.timeoutMs ?? DEFAULT_CHECKER_TIMEOUT_MS;
   const child = spawn(command, args, {
     cwd: workspace,

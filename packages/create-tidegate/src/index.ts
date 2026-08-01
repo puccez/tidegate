@@ -15,6 +15,11 @@ export {
   type DoctorVisibility,
 } from "./doctor.ts";
 export {
+  registerTidegateActionBackend,
+  type RegisterActionBackendConfig,
+  type RegisterActionBackendReport,
+} from "./register.ts";
+export {
   generateBridgeSecret,
   scaffoldTidegateIntegration,
   type PackageManager,

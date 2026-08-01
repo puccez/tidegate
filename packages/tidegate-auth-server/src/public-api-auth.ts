@@ -106,6 +106,8 @@ export async function verifyPublicApiRequest({
 export function createLocalDevAuthContext(): TidegateAuthContext {
   const permissions = [
     "tidegate:interaction:*",
+    // Registrazione self-service dell'action backend in sviluppo locale.
+    "tidegate:action-backend:*",
     "booking:write",
     "todo:read",
     "todo:write",
@@ -121,7 +123,7 @@ export function createLocalDevAuthContext(): TidegateAuthContext {
     subjectType: "user",
     credentialId: "local-dev",
     credentialType: "local_dev",
-    scopes: ["tidegate:interaction:*"],
+    scopes: ["tidegate:interaction:*", "tidegate:action-backend:*"],
     authorization: {
       permissions,
       resourceGrants: [],

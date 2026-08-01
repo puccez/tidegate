@@ -199,7 +199,7 @@ describe("verifyPublicApiRequest", () => {
 
       expect(verified).toMatchObject({
         kind: "local-dev",
-        scopes: ["tidegate:interaction:*"],
+        scopes: ["tidegate:interaction:*", "tidegate:action-backend:*"],
       });
     } finally {
       if (originalAllowLocalDevAuth === undefined) {
@@ -693,9 +693,10 @@ describe("createLocalDevAuthContext", () => {
     expect(createLocalDevAuthContext()).toMatchObject({
       organizationId: "demo-salon",
       tenantId: "demo-salon",
-      scopes: ["tidegate:interaction:*"],
+      scopes: ["tidegate:interaction:*", "tidegate:action-backend:*"],
       permissions: [
         "tidegate:interaction:*",
+        "tidegate:action-backend:*",
         "booking:write",
         "todo:read",
         "todo:write",

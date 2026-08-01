@@ -242,10 +242,14 @@ async function fetchBridgeResponse({
   let response: Response;
 
   try {
+    // `redirect: "manual"`: l'endpoint può essere un backend registrato dal
+    // tenant — un 302 seguito automaticamente ridirigerebbe la POST firmata
+    // (bridge secret incluso) verso un bersaglio arbitrario.
     response = await fetchImpl(endpoint, {
       method: "POST",
       headers,
       body: JSON.stringify(body),
+      redirect: "manual",
       signal,
     });
   } catch (error) {
@@ -263,6 +267,14 @@ async function fetchBridgeResponse({
       "The Tidegate action bridge request failed before receiving a response.",
       "failed",
       error,
+    );
+  }
+
+  if (response.status >= 300 && response.status < 400) {
+    throw new TidegateActionBridgeRuntimeError(
+      "interaction_failed",
+      `The Tidegate action bridge responded with a redirect (HTTP ${response.status}); redirects are not followed.`,
+      "rejected",
     );
   }
 

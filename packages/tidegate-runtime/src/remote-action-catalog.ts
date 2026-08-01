@@ -61,13 +61,24 @@ export async function fetchTidegateActionCatalogManifest({
   fetchImpl = globalThis.fetch,
   signal,
 }: FetchTidegateActionCatalogManifestOptions): Promise<TidegateActionCatalogManifestV1> {
+  // `redirect: "manual"`: il catalogo può essere un backend registrato dal
+  // tenant (input non fidato) — seguire un 302 permetterebbe di rimbalzare
+  // la fetch server-side verso bersagli interni (es. metadata endpoint).
   const response = await fetchImpl(normalizeTrustedUrl(actionCatalogUrl), {
     method: "GET",
     headers: {
       accept: "application/json",
     },
+    redirect: "manual",
     signal,
   });
+
+  if (response.status >= 300 && response.status < 400) {
+    throw new TidegateRemoteActionCatalogError(
+      "catalog_fetch_failed",
+      `Tidegate action catalog responded with a redirect (HTTP ${response.status}); redirects are not followed.`,
+    );
+  }
 
   if (!response.ok) {
     throw new TidegateRemoteActionCatalogError(
@@ -88,7 +99,19 @@ export async function fetchTidegateActionCatalogManifest({
     );
   }
 
-  return TidegateActionCatalogManifestV1Schema.parse(body);
+  // Il dettaglio Zod resta in `details` (log lato server): il message deve
+  // essere stabile e non riflettere frammenti del body remoto verso i client.
+  const parsed = TidegateActionCatalogManifestV1Schema.safeParse(body);
+
+  if (!parsed.success) {
+    throw new TidegateRemoteActionCatalogError(
+      "catalog_response_invalid",
+      "Tidegate action catalog response does not match the manifest schema.",
+      parsed.error,
+    );
+  }
+
+  return parsed.data;
 }
 
 export function createTidegateRemoteActionCatalog({

@@ -334,7 +334,9 @@ export class InMemoryPublishedInteractionLedger {
       title: input.title ?? existingRecord?.title,
       description: input.description ?? existingRecord?.description,
       activeVersion: version,
-      status: existingRecord?.status ?? "active",
+      // Publishing a new version reactivates an archived interaction; revoked
+      // records are rejected by assertRecordCanReceivePublishedVersion above.
+      status: "active",
       updatedAt: now,
     });
     const artifact = PublishedInteractionArtifactSchema.parse({

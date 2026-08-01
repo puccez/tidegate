@@ -174,7 +174,7 @@ describe("interaction registry helpers", () => {
     ).toContain("version: 1");
   });
 
-  test("does not implicitly reactivate archived or revoked interactions during publish", () => {
+  test("reactivates archived interactions during publish and keeps revoked ones blocked", () => {
     const registry = createScopedInteractionRegistry();
     const archivedId = "ix.booking.archivedPublish";
     const revokedId = "ix.booking.revokedPublish";
@@ -205,13 +205,13 @@ describe("interaction registry helpers", () => {
       }),
     });
 
-    const archived = registry.resolveActiveVersion({
+    const republished = registry.resolveActiveVersion({
       auth: baseAuth,
       interactionId: archivedId,
       visibility: "user",
     });
-    expect(archived?.record.status).toBe("archived");
-    expect(archived?.artifact.version).toBe("2");
+    expect(republished?.record.status).toBe("active");
+    expect(republished?.artifact.version).toBe("2");
 
     registry.publishArtifactVersion({
       auth: baseAuth,

@@ -86,6 +86,41 @@ describe("published interaction ledger", () => {
     ]);
   });
 
+  test("reactivates an archived interaction when a new version is published", () => {
+    const ledger = new InMemoryPublishedInteractionLedger();
+
+    ledger.publishArtifactVersion({
+      auth: baseAuth,
+      artifact: artifactInput({
+        source: `${cancelAppointmentGeneratedSource}\n// reactivate v1`,
+        sourceHash: sourceHash("d"),
+      }),
+    });
+    ledger.setInteractionAvailabilityStatus({
+      auth: baseAuth,
+      interactionId,
+      visibility: "user",
+      status: "archived",
+    });
+
+    const republished = ledger.publishArtifactVersion({
+      auth: baseAuth,
+      artifact: artifactInput({
+        source: `${cancelAppointmentGeneratedSource}\n// reactivate v2`,
+        sourceHash: sourceHash("e"),
+      }),
+    });
+
+    expect(republished.record.status).toBe("active");
+    expect(
+      ledger.resolveActiveVersion({
+        auth: baseAuth,
+        interactionId,
+        visibility: "user",
+      })?.record.status,
+    ).toBe("active");
+  });
+
   test("keeps source-hash collision policy local to the ledger", () => {
     const ledger = new InMemoryPublishedInteractionLedger();
 

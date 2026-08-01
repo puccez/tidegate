@@ -1,10 +1,16 @@
 import {
   interactionPublicRoutePaths,
+  InvokeInteractionConfirmationRequiredResponseSchema,
+  InvokeInteractionErrorSchema,
+  InvokeInteractionFailedResponseSchema,
+  InvokeInteractionRejectedResponseSchema,
   InvokeInteractionRequestSchema,
-  InvokeInteractionResponseSchema,
+  InvokeInteractionSuccessResponseSchema,
+  InvokeInteractionTimedOutResponseSchema,
+  type InvokeInteractionErrorCode,
   type InvokeInteractionRequest,
-  type InvokeInteractionResponse,
 } from "@tidegate/contracts";
+import { z } from "zod";
 export {
   TIDEGATE_ACTION_ALLOWED_ACTIONS_HEADER,
   TIDEGATE_ACTION_AUTH_CONTEXT_HEADER,
@@ -45,6 +51,42 @@ export {
 export const DEFAULT_TIDEGATE_API_BASE_URL =
   "https://tidegate.vercel.app/api/v1";
 
+/**
+ * A Tidegate server newer than this SDK build may reject with error codes
+ * the bundled contract enum does not know yet (e.g. `rate_limited` was
+ * added after the first SDK publish). Parse the code as a plain string —
+ * typed so the known codes still narrow and autocomplete — instead of
+ * exploding an otherwise well-formed rejection into a generic
+ * "invalid interaction response" error that loses status and code.
+ */
+export type TidegateInvokeErrorCode =
+  | InvokeInteractionErrorCode
+  | (string & {});
+
+const LenientInvokeErrorCodeSchema = z
+  .string()
+  .min(1) as z.ZodType<TidegateInvokeErrorCode>;
+
+const LenientInvokeErrorSchema = InvokeInteractionErrorSchema.extend({
+  code: LenientInvokeErrorCodeSchema,
+});
+
+const LenientInvokeInteractionResponseSchema = z.discriminatedUnion("status", [
+  InvokeInteractionSuccessResponseSchema,
+  InvokeInteractionConfirmationRequiredResponseSchema,
+  InvokeInteractionRejectedResponseSchema.extend({
+    error: LenientInvokeErrorSchema,
+  }),
+  InvokeInteractionFailedResponseSchema.extend({
+    error: LenientInvokeErrorSchema,
+  }),
+  InvokeInteractionTimedOutResponseSchema,
+]);
+
+export type TidegateInvokeInteractionResponse = z.infer<
+  typeof LenientInvokeInteractionResponseSchema
+>;
+
 export type TidegateFetch = (
   input: Parameters<typeof fetch>[0],
   init?: Parameters<typeof fetch>[1],
@@ -60,7 +102,7 @@ export type TidegateInteractionsClient = {
   invoke: (
     interactionId: string,
     request: InvokeInteractionRequest,
-  ) => Promise<InvokeInteractionResponse>;
+  ) => Promise<TidegateInvokeInteractionResponse>;
 };
 
 export type TidegateServerClient = {
@@ -121,7 +163,7 @@ export function createTidegateServerClient({
           );
         }
 
-        const parsed = InvokeInteractionResponseSchema.safeParse(body);
+        const parsed = LenientInvokeInteractionResponseSchema.safeParse(body);
 
         if (!parsed.success) {
           throw new TidegateSdkError(

@@ -8,6 +8,7 @@ export const InvokeInteractionErrorCodeSchema = z.enum([
   "budget_exhausted",
   "invalid_request",
   "auth_required",
+  "rate_limited",
   "tenant_mismatch",
   "permission_denied",
   "idempotency_key_required",

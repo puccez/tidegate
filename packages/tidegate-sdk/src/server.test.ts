@@ -172,6 +172,39 @@ describe("createTidegateServerClient", () => {
     });
   });
 
+  test("tolerates rejection codes newer than the bundled contract enum", async () => {
+    // A server may add codes (e.g. rate_limited) after this SDK build was
+    // published: the typed rejection must survive instead of collapsing
+    // into a generic invalid-response error.
+    const tidegate = createTidegateServerClient({
+      apiKey: "evk_test",
+      baseUrl: "http://localhost:3000/api/v1",
+      fetchImpl: async () =>
+        Response.json(
+          {
+            status: "rejected",
+            invocationId: "inv_limited",
+            error: {
+              code: "some_future_error_code",
+              message: "Rate limit exceeded. Retry in 42s.",
+            },
+          },
+          { status: 429, headers: { "retry-after": "42" } },
+        ),
+    });
+
+    await expect(
+      tidegate.interactions.invoke("ix.booking.cancelAppointment", validRequest),
+    ).resolves.toEqual({
+      status: "rejected",
+      invocationId: "inv_limited",
+      error: {
+        code: "some_future_error_code",
+        message: "Rate limit exceeded. Retry in 42s.",
+      },
+    });
+  });
+
   test("validates invoke requests before calling Tidegate", async () => {
     let called = false;
     const tidegate = createTidegateServerClient({

@@ -215,6 +215,20 @@ export function createWorkOsSessionVerifier({
 }: CreateWorkOsSessionVerifierOptions = {}): WorkOsSessionVerifier {
   const trimmedIssuer = (issuer ?? "").trim().replace(/\/+$/, "");
   const trimmedClientId = (clientId ?? "").trim();
+  // WorkOS presenta lo stesso environment sotto DUE identità issuer, a seconda
+  // dell'endpoint che ha avviato il flusso: il dominio AuthKit configurato
+  // (es. https://<slug>.authkit.app) oppure la forma
+  // https://api.workos.com/user_management/<client_id> (usata dai flussi
+  // authorize di api.workos.com, cioè da @workos-inc/authkit-nextjs). I due
+  // endpoint JWKS servono le stesse chiavi; il binding all'applicazione resta
+  // garantito dal claim client_id e dalla shape user_ del sub.
+  const acceptedIssuers =
+    trimmedClientId.length > 0
+      ? [
+          trimmedIssuer,
+          `https://api.workos.com/user_management/${trimmedClientId}`,
+        ]
+      : [trimmedIssuer];
   const trimmedJwksUrl =
     jwksUrl?.trim() ||
     (trimmedIssuer.length > 0 ? `${trimmedIssuer}/oauth2/jwks` : "");
@@ -260,7 +274,7 @@ export function createWorkOsSessionVerifier({
 
       try {
         ({ payload } = await jwtVerify(token, keySource, {
-          issuer: trimmedIssuer,
+          issuer: acceptedIssuers,
           algorithms: SESSION_ALLOWED_ALGORITHMS,
           clockTolerance: clockToleranceSec,
           // jose only validates exp when present: without requiredClaims a

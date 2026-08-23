@@ -149,6 +149,35 @@ describe("createWorkOsSessionVerifier", () => {
     ).resolves.toEqual({ status: "invalid" });
   });
 
+  // WorkOS presenta lo stesso environment sotto due identità issuer: il
+  // dominio AuthKit e la forma api.workos.com/user_management/<client_id>
+  // (usata dai flussi authorize di api.workos.com, cioè dai token reali di
+  // @workos-inc/authkit-nextjs). Stesse chiavi, stesso client.
+  test("accepts tokens whose issuer is the user_management form of the same application", async () => {
+    const result = await sessionVerifier().verify(
+      await sessionToken({
+        issuer: `https://api.workos.com/user_management/${CLIENT_ID}`,
+      }),
+    );
+
+    expect(result).toMatchObject({
+      status: "verified",
+      verification: { userId: USER_ID, organizationId: ORG_ID },
+    });
+  });
+
+  test("rejects the user_management issuer form of ANOTHER application", async () => {
+    await expect(
+      sessionVerifier().verify(
+        await sessionToken({
+          issuer:
+            "https://api.workos.com/user_management/client_01XXOTHERAPPXXXXXXXXXXXXXX",
+          claims: { client_id: "client_01XXOTHERAPPXXXXXXXXXXXXXX" },
+        }),
+      ),
+    ).resolves.toEqual({ status: "invalid" });
+  });
+
   test("rejects tokens minted for another AuthKit application", async () => {
     await expect(
       sessionVerifier().verify(

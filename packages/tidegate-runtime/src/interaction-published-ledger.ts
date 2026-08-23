@@ -378,6 +378,9 @@ export class InMemoryPublishedInteractionLedger {
     const scope = deriveInteractionRegistryScope(input.auth, input.visibility);
     const key = interactionRecordKey(scope, input.interactionId);
     const record = this.requireRecord(key, input);
+
+    assertAvailabilityTransitionAllowed(record, input.status);
+
     const updatedRecord = InteractionRecordSchema.parse({
       ...record,
       status: input.status,
@@ -523,7 +526,7 @@ const INTERACTION_VISIBILITY_SORT_ORDER = new Map(
   INTERACTION_VISIBILITIES.map((visibility, index) => [visibility, index]),
 );
 
-function compareScopedInteractionResolutions(
+export function compareScopedInteractionResolutions(
   left: ScopedInteractionResolution,
   right: ScopedInteractionResolution,
 ) {
@@ -538,7 +541,7 @@ function compareScopedInteractionResolutions(
   return left.record.id.localeCompare(right.record.id);
 }
 
-function assertArtifactMatchesRecord(
+export function assertArtifactMatchesRecord(
   record: InteractionRecord,
   artifact: PublishedInteractionArtifact,
 ) {
@@ -566,7 +569,7 @@ function assertArtifactMatchesRecord(
   }
 }
 
-function assertRecordCanReceivePublishedVersion(record: InteractionRecord) {
+export function assertRecordCanReceivePublishedVersion(record: InteractionRecord) {
   if (record.status !== "revoked") {
     return;
   }
@@ -577,7 +580,30 @@ function assertRecordCanReceivePublishedVersion(record: InteractionRecord) {
   );
 }
 
-function nextArtifactVersion(record: InteractionRecord | undefined) {
+/**
+ * Revoked is terminal on the availability write path: a stale archive (or
+ * reactivation) request that lost the race against a revoke must not
+ * resurrect the record. Backends enforce this INSIDE their write boundary
+ * (the in-memory ledger is single-threaded; the database backend checks
+ * under the row lock), so the HTTP-handler pre-check cannot be bypassed by
+ * interleaving. Only publishing a new version reactivates — and publish
+ * rejects revoked records via assertRecordCanReceivePublishedVersion.
+ */
+export function assertAvailabilityTransitionAllowed(
+  record: InteractionRecord,
+  nextStatus: InteractionRecord["status"],
+) {
+  if (record.status !== "revoked" || nextStatus === "revoked") {
+    return;
+  }
+
+  throw new InteractionRegistryError(
+    "interaction_version_conflict",
+    `Interaction "${record.id}" is revoked and cannot change availability to ${nextStatus}.`,
+  );
+}
+
+export function nextArtifactVersion(record: InteractionRecord | undefined) {
   if (record?.activeVersion === undefined) {
     return "1";
   }

@@ -7,6 +7,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./demo-fixtures": "./src/demo-fixtures.ts",
+    "./interaction-registry-backend": "./src/interaction-registry-backend.ts",
+    "./interaction-registry-conformance": "./src/interaction-registry-conformance.ts",
     "./sandbox-vercel": "./src/sandbox-backend-vercel.ts",
     "./testing": "./src/interaction-test-harness.ts"
   },

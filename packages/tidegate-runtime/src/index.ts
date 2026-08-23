@@ -11,6 +11,7 @@ export * from "./interaction-draft-publication.ts";
 export * from "./interaction-ledger.ts";
 export * from "./interaction-provenance.ts";
 export * from "./interaction-registry.ts";
+export * from "./scoped-interaction-registry.ts";
 export * from "./interaction-action-authoring-files.ts";
 export * from "./interaction-authoring-workspace.ts";
 export * from "./json-schema-runtime.ts";

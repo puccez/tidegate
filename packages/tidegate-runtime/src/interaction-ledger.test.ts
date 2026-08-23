@@ -71,7 +71,7 @@ function sourceHash(hexChar: string) {
 }
 
 describe("scoped interaction ledger", () => {
-  test("resolves a visible published interaction for invoke and defaults the active version", () => {
+  test("resolves a visible published interaction for invoke and defaults the active version", async () => {
     const registry = createScopedInteractionRegistry();
     const ledger = createScopedInteractionLedger({ registry });
 
@@ -79,7 +79,7 @@ describe("scoped interaction ledger", () => {
       auth,
       artifact: artifactInput(),
     });
-    const result = ledger.resolvePublishedInteractionForInvoke({
+    const result = await ledger.resolvePublishedInteractionForInvoke({
       auth,
       body: invokeBody(),
       interactionId,
@@ -97,7 +97,7 @@ describe("scoped interaction ledger", () => {
     });
   });
 
-  test("rejects pinned historical versions before runtime invocation", () => {
+  test("rejects pinned historical versions before runtime invocation", async () => {
     const registry = createScopedInteractionRegistry();
     const ledger = createScopedInteractionLedger({ registry });
 
@@ -107,7 +107,7 @@ describe("scoped interaction ledger", () => {
     });
 
     expect(
-      ledger.resolvePublishedInteractionForInvoke({
+      await ledger.resolvePublishedInteractionForInvoke({
         auth,
         body: invokeBody({ interactionVersion: "0" }),
         interactionId,
@@ -120,7 +120,7 @@ describe("scoped interaction ledger", () => {
     });
   });
 
-  test("overlays record availability onto the artifact used for runtime invoke", () => {
+  test("overlays record availability onto the artifact used for runtime invoke", async () => {
     const registry = createScopedInteractionRegistry();
     const ledger = createScopedInteractionLedger({ registry });
 
@@ -135,12 +135,12 @@ describe("scoped interaction ledger", () => {
       visibility: "user",
     });
 
-    const published = ledger.resolvePublishedInteractionForInvoke({
+    const published = await ledger.resolvePublishedInteractionForInvoke({
       auth,
       body: invokeBody(),
       interactionId,
     });
-    const runtimeArtifact = ledger.resolvePublishedArtifactForRuntime({
+    const runtimeArtifact = await ledger.resolvePublishedArtifactForRuntime({
       auth,
       interactionId,
     });
@@ -156,7 +156,7 @@ describe("scoped interaction ledger", () => {
     });
   });
 
-  test("returns unavailable when a visible record has no active artifact", () => {
+  test("returns unavailable when a visible record has no active artifact", async () => {
     const registry = createScopedInteractionRegistry();
     const ledger = createScopedInteractionLedger({ registry });
 
@@ -168,7 +168,7 @@ describe("scoped interaction ledger", () => {
     });
 
     expect(
-      ledger.resolvePublishedInteractionForInvoke({
+      await ledger.resolvePublishedInteractionForInvoke({
         auth,
         body: invokeBody(),
         interactionId,
@@ -180,13 +180,13 @@ describe("scoped interaction ledger", () => {
     });
   });
 
-  test("passes through unresolved interactions for static runtime fallback", () => {
+  test("passes through unresolved interactions for static runtime fallback", async () => {
     const registry = createScopedInteractionRegistry();
     const ledger = createScopedInteractionLedger({ registry });
     const body = invokeBody();
 
     expect(
-      ledger.resolvePublishedInteractionForInvoke({
+      await ledger.resolvePublishedInteractionForInvoke({
         auth,
         body,
         interactionId,

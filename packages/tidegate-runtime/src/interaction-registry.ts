@@ -51,6 +51,7 @@ import type {
   InteractionOwnerField,
   InteractionRegistryScope,
 } from "./interaction-registry-scope.ts";
+import type { ScopedInteractionRegistry } from "./scoped-interaction-registry.ts";
 
 export { InteractionRegistryError } from "./interaction-registry-errors.ts";
 export type { InteractionRegistryErrorCode } from "./interaction-registry-errors.ts";
@@ -329,7 +330,14 @@ export function createScopedInteractionRegistry() {
   return new InMemoryScopedInteractionRegistry();
 }
 
-export class InMemoryScopedInteractionRegistry {
+/**
+ * Fully synchronous `ScopedInteractionRegistry` backend: the reference
+ * implementation for the conformance suite, the default for tests, and the
+ * fallback for local dev without a configured database.
+ */
+export class InMemoryScopedInteractionRegistry
+  implements ScopedInteractionRegistry
+{
   private readonly published = new InMemoryPublishedInteractionLedger();
   private readonly branchesByScopedKey = new Map<
     string,
@@ -1087,7 +1095,7 @@ export class InMemoryScopedInteractionRegistry {
   }
 }
 
-function publishRequestSnapshotFromArtifact(
+export function publishRequestSnapshotFromArtifact(
   record: InteractionRecord,
   artifact: PublishedInteractionArtifact,
 ): InteractionDraftPublishRequestSnapshot {
@@ -1110,5 +1118,5 @@ function publishRequestSnapshotFromArtifact(
   };
 }
 
-const DEFAULT_INTERACTION_DRAFT_SOURCE =
+export const DEFAULT_INTERACTION_DRAFT_SOURCE =
   "// Tidegate draft source has not been written yet.";

@@ -177,30 +177,27 @@ export function interactionRecordKey(
   return JSON.stringify([interactionScopeKey(scope), interactionId]);
 }
 
-export function interactionDraftKey(
-  scope: InteractionDraftRegistryScope,
-  draftId: string,
-) {
+export function interactionDraftScopeKey(scope: InteractionDraftRegistryScope) {
   return JSON.stringify([
     scope.ownerTenantId ?? null,
     scope.ownerOrganizationId ?? null,
     scope.ownerUserId ?? null,
     scope.clientId ?? null,
-    draftId,
   ]);
+}
+
+export function interactionDraftKey(
+  scope: InteractionDraftRegistryScope,
+  draftId: string,
+) {
+  return JSON.stringify([interactionDraftScopeKey(scope), draftId]);
 }
 
 export function interactionBranchKey(
   scope: InteractionDraftRegistryScope,
   branchId: string,
 ) {
-  return JSON.stringify([
-    scope.ownerTenantId ?? null,
-    scope.ownerOrganizationId ?? null,
-    scope.ownerUserId ?? null,
-    scope.clientId ?? null,
-    branchId,
-  ]);
+  return JSON.stringify([interactionDraftScopeKey(scope), branchId]);
 }
 
 export function ownerFieldsForScope(scope: InteractionRegistryScope) {

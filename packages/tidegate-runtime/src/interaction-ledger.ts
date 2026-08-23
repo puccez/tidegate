@@ -7,12 +7,15 @@ import {
   InteractionRegistryError,
   type ScopedInteractionRecordResolution,
 } from "./interaction-registry.ts";
+import type { ScopedInteractionRegistryResult } from "./scoped-interaction-registry.ts";
 
 export type InteractionLedgerRegistry = {
   resolveVisibleInteraction: (input: {
     auth: RuntimeAuthContext;
     interactionId: string;
-  }) => ScopedInteractionRecordResolution | undefined;
+  }) => ScopedInteractionRegistryResult<
+    ScopedInteractionRecordResolution | undefined
+  >;
 };
 
 export type PublishedInteractionInvokeResolution =
@@ -56,7 +59,7 @@ export class ScopedInteractionLedger {
     this.registry = registry;
   }
 
-  resolvePublishedInteractionForInvoke({
+  async resolvePublishedInteractionForInvoke({
     auth,
     body,
     interactionId,
@@ -64,11 +67,11 @@ export class ScopedInteractionLedger {
     auth: RuntimeAuthContext;
     body: unknown;
     interactionId: string;
-  }): PublishedInteractionInvokeResolution {
+  }): Promise<PublishedInteractionInvokeResolution> {
     let resolution: ScopedInteractionRecordResolution | undefined;
 
     try {
-      resolution = this.registry.resolveVisibleInteraction({
+      resolution = await this.registry.resolveVisibleInteraction({
         auth,
         interactionId,
       });
@@ -114,15 +117,15 @@ export class ScopedInteractionLedger {
     };
   }
 
-  resolvePublishedArtifactForRuntime({
+  async resolvePublishedArtifactForRuntime({
     auth,
     interactionId,
   }: {
     auth: RuntimeAuthContext;
     interactionId: string;
-  }): PublishedInteractionArtifact | undefined {
+  }): Promise<PublishedInteractionArtifact | undefined> {
     return artifactForPublishedInvoke(
-      this.registry.resolveVisibleInteraction({
+      await this.registry.resolveVisibleInteraction({
         auth,
         interactionId,
       }),

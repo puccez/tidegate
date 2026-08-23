@@ -133,6 +133,9 @@ export function createLocalDevAuthContext(): TidegateAuthContext {
     "tidegate:interaction:*",
     // Registrazione self-service dell'action backend in sviluppo locale.
     "tidegate:action-backend:*",
+    // Copre sia il catalogo local-dev sia le letture del cliente demo
+    // (booking.lookup/booking.day_schedule) quando lo si prova in locale.
+    "booking:read",
     "booking:write",
     "todo:read",
     "todo:write",

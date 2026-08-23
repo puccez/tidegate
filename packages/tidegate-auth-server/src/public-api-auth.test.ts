@@ -710,6 +710,7 @@ describe("createLocalDevAuthContext", () => {
       permissions: [
         "tidegate:interaction:*",
         "tidegate:action-backend:*",
+        "booking:read",
         "booking:write",
         "todo:read",
         "todo:write",

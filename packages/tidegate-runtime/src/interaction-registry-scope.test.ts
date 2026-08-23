@@ -63,7 +63,7 @@ describe("interaction registry scope", () => {
 
   test("derives draft scope and artifact creator identity from auth", () => {
     expect(deriveInteractionDraftRegistryScope(auth)).toEqual({
-      appId: undefined,
+      clientId: undefined,
       ownerTenantId: "tenant_scope",
       ownerOrganizationId: "org_scope",
       ownerUserId: "user_scope",

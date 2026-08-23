@@ -171,7 +171,7 @@ reads its own process environment — it does **not** load the project's
 | `--api-base-url <url>` | `TIDEGATE_INTERACTIONS_API_BASE_URL` or `TIDEGATE_API_BASE_URL` | Tidegate API base URL (required with `--e2e`). |
 | `--token <token>` / `--api-key <key>` | `TIDEGATE_API_TOKEN` or `TIDEGATE_API_KEY` | Tidegate API credential (required with `--e2e`). |
 | `--interaction-id <id>` | — | `--e2e` only (ignored otherwise). Smoke interaction id, must start with `ix.diagnostics.` (default `ix.diagnostics.echo`). |
-| `--visibility <v>` | — | `--e2e` only (ignored otherwise). `user`, `tenant` (default), `organization`, or `app`. |
+| `--visibility <v>` | — | `--e2e` only (ignored otherwise). `user`, `tenant` (default), `organization`, or `client`. |
 | `--json` | — | Machine-readable report on stdout. |
 
 Stages run in three layers: catalog (`catalog-fetch` → `catalog-schema` →

@@ -257,7 +257,7 @@ describe("interaction registry helpers", () => {
     ).toBe("revoked");
   });
 
-  test("keeps the same interaction id isolated across user, tenant, organization, and app scopes", () => {
+  test("keeps the same interaction id isolated across user, tenant, organization, and client scopes", () => {
     const registry = createScopedInteractionRegistry();
     const scopedArtifacts = [
       {
@@ -279,15 +279,15 @@ describe("interaction registry helpers", () => {
         hash: sourceHash("5"),
       },
       {
-        visibility: "app" as const,
-        auth: auth({ clientId: "app_scope" }),
-        source: "app scoped source",
+        visibility: "client" as const,
+        auth: auth({ clientId: "client_scope" }),
+        source: "client scoped source",
         hash: sourceHash("6"),
       },
       {
-        visibility: "app" as const,
-        auth: auth({ clientId: "app_scope_other" }),
-        source: "other app scoped source",
+        visibility: "client" as const,
+        auth: auth({ clientId: "client_scope_other" }),
+        source: "other client scoped source",
         hash: sourceHash("f"),
       },
     ];

@@ -26,7 +26,7 @@ export const InteractionVisibilitySchema = z.enum([
   "user",
   "tenant",
   "organization",
-  "app",
+  "client",
 ]);
 
 export const InteractionAvailabilityStatusSchema = z.enum([

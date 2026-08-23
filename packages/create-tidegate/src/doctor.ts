@@ -30,7 +30,7 @@ export type DoctorStage = {
   detail?: string;
 };
 
-export type DoctorVisibility = "user" | "tenant" | "organization" | "app";
+export type DoctorVisibility = "user" | "tenant" | "organization" | "client";
 
 export type DoctorConfig = {
   catalogUrl: string;

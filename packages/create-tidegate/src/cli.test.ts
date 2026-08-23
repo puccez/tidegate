@@ -209,6 +209,26 @@ describe("runCreateTidegate", () => {
     expect(cli.stderr.join("\n")).toContain('Invalid --visibility "everyone"');
   });
 
+  test("doctor rejects the renamed app visibility value", async () => {
+    const cli = await runCli([
+      "doctor",
+      "--catalog-url",
+      "http://127.0.0.1:1/api/action-catalog",
+      "--e2e",
+      "--api-base-url",
+      "http://127.0.0.1:1/api/v1",
+      "--token",
+      "test",
+      "--visibility",
+      "app",
+    ]);
+
+    expect(cli.exitCode).toBe(2);
+    expect(cli.stderr.join("\n")).toContain(
+      'Invalid --visibility "app". Use one of: user, tenant, organization, client.',
+    );
+  });
+
   test("doctor rejects a smoke interaction id outside the diagnostic namespace", async () => {
     const cli = await runCli([
       "doctor",

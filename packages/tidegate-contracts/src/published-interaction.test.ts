@@ -16,6 +16,7 @@ import {
   InteractionBranchSchema,
   InteractionDraftSchema,
   InteractionRecordSchema,
+  InteractionVisibilitySchema,
   PublicInteractionDiscoveryDetailResponseSchema,
   PublicInteractionDiscoveryItemSchema,
   PublicInteractionDiscoveryListResponseSchema,
@@ -107,6 +108,11 @@ function collectStringValues(
 }
 
 describe("published interaction contracts", () => {
+  test("accepts the client visibility and rejects the renamed app value", () => {
+    expect(InteractionVisibilitySchema.safeParse("client").success).toBe(true);
+    expect(InteractionVisibilitySchema.safeParse("app").success).toBe(false);
+  });
+
   test("parses generated cancel appointment fixtures", () => {
     expect(
       PublishInteractionRequestSchema.safeParse(cancelAppointmentPublishRequest)

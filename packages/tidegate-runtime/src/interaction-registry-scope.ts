@@ -11,14 +11,14 @@ export type InteractionRegistryScope = {
   ownerTenantId?: string;
   ownerOrganizationId?: string;
   ownerUserId?: string;
-  appId?: string;
+  clientId?: string;
 };
 
 export type InteractionDraftRegistryScope = {
   ownerTenantId?: string;
   ownerOrganizationId?: string;
   ownerUserId?: string;
-  appId?: string;
+  clientId?: string;
 };
 
 export type InteractionOwnerField =
@@ -30,7 +30,7 @@ export const INTERACTION_VISIBILITIES: InteractionVisibility[] = [
   "user",
   "tenant",
   "organization",
-  "app",
+  "client",
 ];
 
 export const OWNER_FIELD_NAMES: InteractionOwnerField[] = [
@@ -50,7 +50,7 @@ export function deriveInteractionRegistryScope(
     auth.workosUserId,
     auth.subjectType === "user" ? auth.subjectId : undefined,
   );
-  const appId = firstPresent(
+  const clientId = firstPresent(
     auth.clientId,
     auth.machineClientId,
     auth.subjectType === "api_key" ? auth.credentialId : undefined,
@@ -79,13 +79,13 @@ export function deriveInteractionRegistryScope(
         visibility,
         ownerOrganizationId,
       };
-    case "app":
-      requireScopeValue("app", "clientId or machineClientId", appId);
+    case "client":
+      requireScopeValue("client", "clientId or machineClientId", clientId);
       return {
         visibility,
         ownerTenantId,
         ownerOrganizationId,
-        appId,
+        clientId,
       };
   }
 }
@@ -101,7 +101,7 @@ export function deriveInteractionDraftRegistryScope(
       auth.workosUserId,
       auth.subjectType === "user" ? auth.subjectId : undefined,
     ),
-    appId: firstPresent(
+    clientId: firstPresent(
       auth.clientId,
       auth.machineClientId,
       auth.subjectType === "api_key" ? auth.credentialId : undefined,
@@ -149,13 +149,13 @@ export function interactionRegistryScopeFromDraftScope(
         visibility,
         ownerOrganizationId: scope.ownerOrganizationId,
       };
-    case "app":
-      requireScopeValue("app", "clientId or machineClientId", scope.appId);
+    case "client":
+      requireScopeValue("client", "clientId or machineClientId", scope.clientId);
       return {
         visibility,
         ownerTenantId: scope.ownerTenantId,
         ownerOrganizationId: scope.ownerOrganizationId,
-        appId: scope.appId,
+        clientId: scope.clientId,
       };
   }
 }
@@ -166,7 +166,7 @@ export function interactionScopeKey(scope: InteractionRegistryScope) {
     scope.ownerTenantId ?? null,
     scope.ownerOrganizationId ?? null,
     scope.ownerUserId ?? null,
-    scope.appId ?? null,
+    scope.clientId ?? null,
   ]);
 }
 
@@ -185,7 +185,7 @@ export function interactionDraftKey(
     scope.ownerTenantId ?? null,
     scope.ownerOrganizationId ?? null,
     scope.ownerUserId ?? null,
-    scope.appId ?? null,
+    scope.clientId ?? null,
     draftId,
   ]);
 }
@@ -198,7 +198,7 @@ export function interactionBranchKey(
     scope.ownerTenantId ?? null,
     scope.ownerOrganizationId ?? null,
     scope.ownerUserId ?? null,
-    scope.appId ?? null,
+    scope.clientId ?? null,
     branchId,
   ]);
 }

@@ -163,7 +163,7 @@ const DOCTOR_VISIBILITIES: readonly DoctorVisibility[] = [
   "user",
   "tenant",
   "organization",
-  "app",
+  "client",
 ];
 
 const REGISTER_VALUE_OPTIONS = new Set([
@@ -690,7 +690,7 @@ function doctorUsage(): string {
     "Usage:",
     "  create-tidegate doctor [--catalog-url <url>] [--actions-url <url>] [--secret <value>]",
     "                         [--e2e] [--api-base-url <url>] [--token <token> | --api-key <key>]",
-    "                         [--interaction-id <ix.diagnostics.*>] [--visibility user|tenant|organization|app]",
+    "                         [--interaction-id <ix.diagnostics.*>] [--visibility user|tenant|organization|client]",
     "                         [--json]",
     "",
     "Options (connection options fall back to the environment variable in",
@@ -712,7 +712,7 @@ function doctorUsage(): string {
     "                         must start with \"ix.diagnostics.\". Default:",
     "                         ix.diagnostics.echo. Archived after the check.",
     "  --visibility <v>       --e2e only (ignored otherwise). Smoke interaction",
-    "                         visibility: user|tenant|organization|app. Default: tenant.",
+    "                         visibility: user|tenant|organization|client. Default: tenant.",
     "  --json                 Print the full report as JSON on stdout (recommended for",
     "                         agents/scripts): { ok: boolean, stages: [{ id, title,",
     "                         status: \"pass\"|\"fail\"|\"warn\"|\"skip\", detail? }] }.",

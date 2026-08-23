@@ -12,10 +12,19 @@ import {
   type WorkOsM2mVerifier,
   type WorkOsM2mVerifyResult,
 } from "./workos-m2m.ts";
+import {
+  createWorkOsSessionVerifier,
+  governanceScopesFromWorkOsRoles,
+  isWorkOsUserSessionShapedToken,
+  WORKOS_SESSION_DEFAULT_SCOPES,
+  type WorkOsSessionVerifier,
+  type WorkOsSessionVerifyResult,
+} from "./workos-session.ts";
 
 export type PublicApiCredentialKind =
   | "workos-api-key"
   | "workos-m2m"
+  | "workos-session"
   | "local-dev";
 
 export type VerifiedPublicApiCredential = {
@@ -37,6 +46,7 @@ export type VerifyPublicApiRequestOptions = {
   requiredScopes: string[];
   apiKeyValidator?: WorkOsApiKeyValidator;
   m2mVerifier?: WorkOsM2mVerifier;
+  sessionVerifier?: WorkOsSessionVerifier;
   allowLocalDev?: boolean;
   localDevAuth?: TidegateAuthContext;
 };
@@ -50,6 +60,7 @@ export async function verifyPublicApiRequest({
   // Safe as a per-call default: the underlying remote JWKS is a module
   // singleton keyed by issuer/jwksUrl (D7), so this never re-fetches keys.
   m2mVerifier = createWorkOsM2mVerifier(),
+  sessionVerifier = createWorkOsSessionVerifier(),
   allowLocalDev = isLocalDevAllowed(request),
   localDevAuth = createLocalDevAuthContext(),
 }: VerifyPublicApiRequestOptions): Promise<VerifiedPublicApiCredential> {
@@ -74,6 +85,20 @@ export async function verifyPublicApiRequest({
   }
 
   if (isJwtShapedCredential(token)) {
+    // Claims dispatch between the two JWT classes of the shared issuer: a
+    // user-shaped subject (`user_…`) is an AuthKit session, a machine subject
+    // (`client_…`) is M2M. The unverified decode only picks the verifier —
+    // each verifier still performs the full signature/claims verification and
+    // re-enforces its own subject shape, so a crafted `sub` can never cross
+    // credential classes.
+    if (isWorkOsUserSessionShapedToken(token)) {
+      return verifyWorkOsSessionCredential({
+        token,
+        requiredScopes,
+        sessionVerifier,
+      });
+    }
+
     return verifyWorkOsM2mCredential({ token, requiredScopes, m2mVerifier });
   }
 
@@ -280,6 +305,142 @@ async function verifyWorkOsM2mCredential({
       ownerId: claims.sub,
     },
   };
+}
+
+async function verifyWorkOsSessionCredential({
+  token,
+  requiredScopes,
+  sessionVerifier,
+}: {
+  token: string;
+  requiredScopes: string[];
+  sessionVerifier: WorkOsSessionVerifier;
+}): Promise<VerifiedPublicApiCredential> {
+  // Fail-closed guard: without WORKOS_AUTHKIT_ISSUER + WORKOS_CLIENT_ID the
+  // session path is not enabled. A well-formed session token against an
+  // unconfigured deployment is an operator problem, not a caller problem
+  // → 503 (same posture as the M2M path).
+  if (!sessionVerifier.configured) {
+    throw new PublicApiAuthError({
+      code: "unsupported_credential",
+      message:
+        "WorkOS session verification is not configured for this deployment.",
+      status: 503,
+    });
+  }
+
+  let result: WorkOsSessionVerifyResult;
+
+  try {
+    result = await sessionVerifier.verify(token);
+  } catch (error) {
+    throw new PublicApiAuthError({
+      code: "auth_provider_unavailable",
+      message:
+        error instanceof Error
+          ? error.message
+          : "The auth provider is unavailable.",
+      status: 503,
+    });
+  }
+
+  if (result.status === "invalid") {
+    throw new PublicApiAuthError({
+      code: "invalid_credential",
+      message:
+        result.reason === "token_expired"
+          ? "The session access token is expired."
+          : "The session access token is invalid.",
+      status: 401,
+      reason: result.reason,
+    });
+  }
+
+  const { userId, sessionId, organizationId, roles } = result.verification;
+
+  // Tenancy is mandatory on the public surface: everything a session touches
+  // belongs to its active organization. AuthKit sessions without an org
+  // context are valid identities but have nothing they may act on here.
+  if (organizationId === undefined) {
+    throw new PublicApiAuthError({
+      code: "invalid_credential",
+      message: "The session has no active organization.",
+      status: 403,
+    });
+  }
+
+  // Membership alone grants the interaction surface (decision 9, "permessi
+  // aperti" day-one); the governance roles of the membership come on top as
+  // governance SCOPES only.
+  const governanceScopes = governanceScopesFromWorkOsRoles(roles);
+  const scopes = uniqueStrings([
+    ...WORKOS_SESSION_DEFAULT_SCOPES,
+    ...governanceScopes,
+  ]);
+
+  if (!hasRequiredScopes({ grantedScopes: scopes, requiredScopes })) {
+    const missingScopes = requiredScopes.filter(
+      (requiredScope) =>
+        !hasRequiredScopes({
+          grantedScopes: scopes,
+          requiredScopes: [requiredScope],
+        }),
+    );
+
+    throw new PublicApiAuthError({
+      code: "missing_required_scope",
+      message: `The session is missing required scope(s): ${missingScopes.join(", ")}.`,
+      status: 403,
+      reason: "scope_not_granted",
+    });
+  }
+
+  // The runtime consumes `authorization.permissions` as the grant set for
+  // interaction actions: only the membership default set goes in there —
+  // NEVER the governance scopes, which would otherwise give governance
+  // roles the power to call actions (decision 7).
+  const actionGrants = [...WORKOS_SESSION_DEFAULT_SCOPES];
+
+  const credentialId = sessionId ?? userId;
+
+  const auth: TidegateAuthContext = {
+    organizationId,
+    orgId: organizationId,
+    tenantId: organizationId,
+    subjectId: userId,
+    subjectType: "user",
+    credentialId,
+    credentialType: "session",
+    scopes,
+    authorization: {
+      permissions: actionGrants,
+      resourceGrants: [],
+    },
+    userId,
+    workosUserId: userId,
+    // NB: no clientId/machineClientId — a session is a human, not a machine;
+    // the AuthKit application binding is enforced during verification.
+    permissions: actionGrants,
+    authMode: "user",
+  };
+
+  return {
+    kind: "workos-session",
+    subjectId: userId,
+    organizationId,
+    scopes,
+    permissions: actionGrants,
+    auth,
+    audit: {
+      credentialId,
+      ownerType: "user",
+      ownerId: userId,
+    },
+  };
+}
+
+function uniqueStrings(values: string[]) {
+  return [...new Set(values)];
 }
 
 function verifyWorkOsApiKeyCredential({

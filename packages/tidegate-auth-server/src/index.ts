@@ -4,3 +4,4 @@ export * from "./public-api-auth.ts";
 export * from "./scopes.ts";
 export * from "./workos-api-keys.ts";
 export * from "./workos-m2m.ts";
+export * from "./workos-session.ts";

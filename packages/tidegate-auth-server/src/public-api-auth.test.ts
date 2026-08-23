@@ -199,7 +199,12 @@ describe("verifyPublicApiRequest", () => {
 
       expect(verified).toMatchObject({
         kind: "local-dev",
-        scopes: ["tidegate:interaction:*", "tidegate:action-backend:*"],
+        scopes: [
+          "tidegate:interaction:*",
+          "tidegate:action-backend:*",
+          "tidegate:app:admin",
+          "tidegate:app:approve",
+        ],
       });
     } finally {
       if (originalAllowLocalDevAuth === undefined) {
@@ -693,7 +698,15 @@ describe("createLocalDevAuthContext", () => {
     expect(createLocalDevAuthContext()).toMatchObject({
       organizationId: "demo-salon",
       tenantId: "demo-salon",
-      scopes: ["tidegate:interaction:*", "tidegate:action-backend:*"],
+      // Gli scopes di governance del catalogo app stanno SOLO negli scopes
+      // (la plancia Governance deve funzionare in local-dev), mai nelle
+      // permissions: i ruoli di governance non concedono actions.
+      scopes: [
+        "tidegate:interaction:*",
+        "tidegate:action-backend:*",
+        "tidegate:app:admin",
+        "tidegate:app:approve",
+      ],
       permissions: [
         "tidegate:interaction:*",
         "tidegate:action-backend:*",

@@ -148,7 +148,18 @@ export function createLocalDevAuthContext(): TidegateAuthContext {
     subjectType: "user",
     credentialId: "local-dev",
     credentialType: "local_dev",
-    scopes: ["tidegate:interaction:*", "tidegate:action-backend:*"],
+    scopes: [
+      "tidegate:interaction:*",
+      "tidegate:action-backend:*",
+      // Scopes di governance del catalogo app: il local-dev non ha una
+      // membership WorkOS da cui derivare i role slug admin/approver,
+      // quindi li porta direttamente — così la plancia Governance è
+      // esercitabile in sviluppo locale. SOLO scopes, mai dentro
+      // `permissions`: i ruoli di governance non concedono actions
+      // (stessa regola della credenziale workos-session, decision 7).
+      "tidegate:app:admin",
+      "tidegate:app:approve",
+    ],
     authorization: {
       permissions,
       resourceGrants: [],

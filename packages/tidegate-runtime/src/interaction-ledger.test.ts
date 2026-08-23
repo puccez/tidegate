@@ -197,3 +197,174 @@ describe("scoped interaction ledger", () => {
     });
   });
 });
+
+describe("app-pinned interaction resolution (app-bound invoke)", () => {
+  function registryWithTwoVersions() {
+    const registry = createScopedInteractionRegistry();
+
+    registry.publishArtifactVersion({
+      auth,
+      artifact: artifactInput({ sourceHash: sourceHash("a") }),
+    });
+    registry.publishArtifactVersion({
+      auth,
+      artifact: artifactInput({ sourceHash: sourceHash("b") }),
+    });
+
+    return registry;
+  }
+
+  test("serves the pinned historical version while a newer active version exists", async () => {
+    const registry = registryWithTwoVersions();
+    const ledger = createScopedInteractionLedger({ registry });
+
+    const result = await ledger.resolveAppPinnedInteractionForInvoke({
+      body: invokeBody(),
+      interactionId,
+      pinnedRefs: [{ interactionId, version: "1" }],
+      resolutionAuth: auth,
+    });
+
+    expect(result).toMatchObject({
+      status: "published",
+      artifact: { id: interactionId, version: "1", status: "active" },
+      request: { interactionVersion: "1" },
+    });
+  });
+
+  test("still serves the pin when it is the active version", async () => {
+    const registry = registryWithTwoVersions();
+    const ledger = createScopedInteractionLedger({ registry });
+
+    const result = await ledger.resolveAppPinnedInteractionForInvoke({
+      body: invokeBody(),
+      interactionId,
+      pinnedRefs: [{ interactionId, version: "2" }],
+      resolutionAuth: auth,
+    });
+
+    expect(result).toMatchObject({
+      status: "published",
+      artifact: { version: "2" },
+      request: { interactionVersion: "2" },
+    });
+  });
+
+  test("an interaction the app does not pin stays unresolvable", async () => {
+    const registry = registryWithTwoVersions();
+    const ledger = createScopedInteractionLedger({ registry });
+
+    expect(
+      await ledger.resolveAppPinnedInteractionForInvoke({
+        body: invokeBody(),
+        interactionId,
+        pinnedRefs: [
+          { interactionId: "ix.booking.somethingElse", version: "1" },
+        ],
+        resolutionAuth: auth,
+      }),
+    ).toEqual({
+      status: "unavailable",
+      code: "interaction_unavailable",
+      message: "This interaction is not available.",
+    });
+  });
+
+  test("a pinned version that was never published stays unresolvable", async () => {
+    const registry = registryWithTwoVersions();
+    const ledger = createScopedInteractionLedger({ registry });
+
+    expect(
+      await ledger.resolveAppPinnedInteractionForInvoke({
+        body: invokeBody(),
+        interactionId,
+        pinnedRefs: [{ interactionId, version: "999" }],
+        resolutionAuth: auth,
+      }),
+    ).toMatchObject({
+      status: "unavailable",
+      code: "interaction_unavailable",
+    });
+  });
+
+  test("a resolution scope that cannot see the interaction resolves nothing", async () => {
+    const registry = registryWithTwoVersions();
+    const ledger = createScopedInteractionLedger({ registry });
+
+    expect(
+      await ledger.resolveAppPinnedInteractionForInvoke({
+        body: invokeBody(),
+        interactionId,
+        pinnedRefs: [{ interactionId, version: "1" }],
+        resolutionAuth: {
+          ...auth,
+          subjectId: "user_other_creator",
+          userId: "user_other_creator",
+          workosUserId: "user_other_creator",
+        },
+      }),
+    ).toMatchObject({
+      status: "unavailable",
+      code: "interaction_unavailable",
+    });
+  });
+
+  test("a record-level revoke wins over the pinned artifact", async () => {
+    const registry = registryWithTwoVersions();
+    const ledger = createScopedInteractionLedger({ registry });
+
+    registry.setInteractionAvailabilityStatus({
+      auth,
+      interactionId,
+      status: "revoked",
+      visibility: "user",
+    });
+
+    const result = await ledger.resolveAppPinnedInteractionForInvoke({
+      body: invokeBody(),
+      interactionId,
+      pinnedRefs: [{ interactionId, version: "1" }],
+      resolutionAuth: auth,
+    });
+
+    // The availability overlay carries the revoke to the kernel's policy
+    // engine, which hard-denies revoked interactions.
+    expect(result).toMatchObject({
+      status: "published",
+      artifact: { status: "revoked" },
+    });
+  });
+
+  test("a body that pins a version different from the app's pin is a mismatch", async () => {
+    const registry = registryWithTwoVersions();
+    const ledger = createScopedInteractionLedger({ registry });
+
+    expect(
+      await ledger.resolveAppPinnedInteractionForInvoke({
+        body: invokeBody({ interactionVersion: "2" }),
+        interactionId,
+        pinnedRefs: [{ interactionId, version: "1" }],
+        resolutionAuth: auth,
+      }),
+    ).toMatchObject({
+      status: "version_mismatch",
+      code: "interaction_version_mismatch",
+    });
+  });
+
+  test("the machine route still rejects pinned historical versions", async () => {
+    const registry = registryWithTwoVersions();
+    const ledger = createScopedInteractionLedger({ registry });
+
+    expect(
+      await ledger.resolvePublishedInteractionForInvoke({
+        auth,
+        body: invokeBody({ interactionVersion: "1" }),
+        interactionId,
+      }),
+    ).toMatchObject({
+      status: "version_mismatch",
+      code: "interaction_version_mismatch",
+    });
+  });
+});

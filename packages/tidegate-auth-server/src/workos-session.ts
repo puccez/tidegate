@@ -124,9 +124,12 @@ export function isWorkOsUserSessionShapedToken(token: string): boolean {
 /**
  * Day-one grant of a session credential: membership suffices to create,
  * publish and use interactions (spec decision 9 — "permessi aperti"). These
- * are the ONLY entries allowed into `authorization.permissions` for a
- * session; per-customer defaults and per-user granularity are the catalog
- * spec's follow-up.
+ * are the ONLY entries the AUTH SERVER puts into
+ * `authorization.permissions` for a session: the per-customer default
+ * domain grants (decision 7) are resolved from the customer's action
+ * backend registration by the app layer (`lib/session-action-grants.ts` in
+ * the agent — this package never touches the database); per-user
+ * granularity is future work.
  */
 export const WORKOS_SESSION_DEFAULT_SCOPES = ["tidegate:interaction:*"];
 

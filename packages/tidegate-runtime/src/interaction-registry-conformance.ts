@@ -413,13 +413,13 @@ export function runScopedInteractionRegistryConformance({
           hash: sourceHash("5"),
         },
         {
-          visibility: "app" as const,
+          visibility: "client" as const,
           auth: auth({ clientId: id("app_scope") }),
           source: "app scoped source",
           hash: sourceHash("6"),
         },
         {
-          visibility: "app" as const,
+          visibility: "client" as const,
           auth: auth({ clientId: id("app_scope_other") }),
           source: "other app scoped source",
           hash: sourceHash("f"),

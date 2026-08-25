@@ -267,12 +267,12 @@ function jsonSchemaToType(schema: JsonSchema, depth: number): string {
     return jsonSchemaTypeToTypeScript(schemaType, schema, depth);
   }
 
-  if (Object.keys(schema).length > 0) {
-    throw new Error(
-      "Unsupported JSON Schema shape for Tidegate capability codegen. Use inline schemas with type, enum, const, anyOf, oneOf, or allOf.",
-    );
-  }
-
+  // Shape fuori dal sottoinsieme riconosciuto (es. $ref, additionalProperties
+  // senza type): degrada a `unknown` invece di lanciare. Il codegen produce
+  // SOLO tipi TypeScript di cortesia — la validazione degli input al runtime
+  // avviene sul JSON Schema stesso nel kernel, quindi `unknown` è sicuro.
+  // Il throw precedente trasformava una finezza di DX in un muro: il primo
+  // publish reale è fallito in loop su uno schema legittimo dell'agente.
   return "unknown";
 }
 

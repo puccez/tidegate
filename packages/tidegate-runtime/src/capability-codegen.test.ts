@@ -343,38 +343,72 @@ describe("generateTidegateCapabilitiesClient", () => {
     );
   });
 
-  test("rejects mixed properties and typed additionalProperties", () => {
-    expect(() =>
-      generateTidegateCapabilitiesClient({
-        ...manifest,
-        actions: {
-          "settings.update": {
-            description: "Update settings.",
-            input: {
-              type: "object",
-              required: ["fixed"],
-              properties: {
-                fixed: { type: "string" },
-              },
-              additionalProperties: { type: "boolean" },
+  test("supports mixed properties and typed additionalProperties with an open index signature", async () => {
+    // Regressione eval 25/08: il throw su questo pattern faceva fallire la
+    // validazione DOPO che l'agente aveva già scritto i file del workspace.
+    const generated = generateTidegateCapabilitiesClient({
+      ...manifest,
+      actions: {
+        "settings.update": {
+          description: "Update settings.",
+          input: {
+            type: "object",
+            required: ["fixed"],
+            properties: {
+              fixed: { type: "string" },
             },
-            output: {
-              type: "object",
-              required: ["ok"],
-              properties: {
-                ok: { type: "boolean" },
-              },
-              additionalProperties: false,
-            },
-            effects: "write",
-            requiredPermissions: ["settings:write"],
-            audit: { required: true, redactPaths: [] },
+            additionalProperties: { type: "boolean" },
           },
+          output: {
+            type: "object",
+            required: ["ok"],
+            properties: {
+              ok: { type: "boolean" },
+            },
+            additionalProperties: false,
+          },
+          effects: "write",
+          requiredPermissions: ["settings:write"],
+          audit: { required: true, redactPaths: [] },
         },
-      }),
-    ).toThrow(
-      "JSON Schema objects with both named properties and schema-valued additionalProperties are not supported by Tidegate capability codegen.",
-    );
+      },
+    });
+    const dir = await mkdtemp(join(tmpdir(), "tidegate-capabilities-"));
+
+    try {
+      expect(generated.source).toContain("fixed: string;");
+      expect(generated.source).toContain("[key: string]: unknown;");
+
+      await Bun.write(join(dir, generated.filename), generated.source);
+      await Bun.write(
+        join(dir, "valid-mixed.ts"),
+        [
+          "import type { TidegateGeneratedInteractionContext } from './tidegate-capabilities.generated';",
+          "declare const ctx: TidegateGeneratedInteractionContext;",
+          "async function run() {",
+          "  await ctx.capabilities.settings.update({ fixed: 'v', beta: true });",
+          "}",
+          "void run;",
+        ].join("\n"),
+      );
+      await Bun.write(
+        join(dir, "invalid-mixed.ts"),
+        [
+          "import type { TidegateGeneratedInteractionContext } from './tidegate-capabilities.generated';",
+          "declare const ctx: TidegateGeneratedInteractionContext;",
+          "ctx.capabilities.settings.update({ fixed: 42 });",
+        ].join("\n"),
+      );
+
+      const validResult = await runTsc(dir, "valid-mixed.ts");
+      const invalidResult = await runTsc(dir, "invalid-mixed.ts");
+
+      expect(validResult.exitCode).toBe(0);
+      expect(invalidResult.exitCode).not.toBe(0);
+      expect(invalidResult.stderr).toContain("string");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 
   test("rejects action ids that collide with namespaces", () => {

@@ -315,12 +315,13 @@ function objectSchemaToType(schema: JsonSchema, depth: number): string {
     return recordTypeForAdditionalProperties(schema, depth);
   }
 
-  if (isRecord(schema.additionalProperties)) {
-    throw new Error(
-      "JSON Schema objects with both named properties and schema-valued additionalProperties are not supported by Tidegate capability codegen.",
-    );
-  }
-
+  // Named properties + additionalProperties con schema: pattern JSON Schema
+  // legittimo che il throw precedente trasformava in un muro a valle (il
+  // publish falliva con "not supported" DOPO che l'agente aveva già scritto
+  // tutti i file, spingendolo a ricreare il workspace da zero). Le chiavi
+  // extra degradano a `unknown` nell'index signature qui sotto: il codegen
+  // produce solo tipi TypeScript di cortesia, la validazione vera resta sul
+  // JSON Schema nel kernel.
   const indent = indentation(depth);
   const childIndent = indentation(depth + 1);
   const propertyLines = entries.map(([key, value]) => {
